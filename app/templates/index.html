@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tattoo ID Console</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}">
+</head>
+<body>
+    <main class="shell">
+        <section class="hero">
+            <div class="hero-copy">
+                <span class="eyebrow">Tattoo Biometric Identification</span>
+                <h1>Operational console for registration and tattoo-based search.</h1>
+                <p>
+                    Add a person, attach multiple tattoo photos, and run a one-click lookup
+                    against the current FAISS index with a confidence threshold of {{ threshold }}.
+                </p>
+            </div>
+            <div class="hero-metrics">
+                <div class="metric-card">
+                    <span class="metric-label">Registered people</span>
+                    <strong class="metric-value">{{ persons|length }}</strong>
+                </div>
+                <div class="metric-card">
+                    <span class="metric-label">Search mode</span>
+                    <strong class="metric-value">Top-1 cosine</strong>
+                </div>
+            </div>
+        </section>
+
+        {% if success_message %}
+        <div class="banner banner-success">{{ success_message }}</div>
+        {% endif %}
+        {% if error_message %}
+        <div class="banner banner-error">{{ error_message }}</div>
+        {% endif %}
+
+        <section class="workspace">
+            <div class="panel">
+                <h2>Register new person</h2>
+                <form action="/ui/add_new_person" method="post" enctype="multipart/form-data" class="form-stack">
+                    <label>
+                        <span>Full name</span>
+                        <input type="text" name="full_name" placeholder="Nikita Ponomarev" required>
+                    </label>
+                    <label class="file-field">
+                        <span>Tattoo photo</span>
+                        <input type="file" name="file" accept="image/jpeg,image/png,image/webp" required>
+                    </label>
+                    <button type="submit">Create person</button>
+                </form>
+            </div>
+
+            <div class="panel">
+                <h2>Add photo to existing person</h2>
+                <form action="/ui/add_photo_to_existing" method="post" enctype="multipart/form-data" class="form-stack">
+                    <label>
+                        <span>Person</span>
+                        <select name="person_id" required>
+                            <option value="" disabled selected>Select person</option>
+                            {% for person in persons %}
+                            <option value="{{ person.person_id }}">#{{ person.person_id }} — {{ person.full_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label class="file-field">
+                        <span>Additional tattoo photo</span>
+                        <input type="file" name="file" accept="image/jpeg,image/png,image/webp" required>
+                    </label>
+                    <button type="submit">Attach photo</button>
+                </form>
+            </div>
+
+            <div class="panel panel-contrast">
+                <h2>Search by tattoo image</h2>
+                <form action="/ui/search" method="post" enctype="multipart/form-data" class="form-stack">
+                    <label class="file-field">
+                        <span>Query photo</span>
+                        <input type="file" name="file" accept="image/jpeg,image/png,image/webp" required>
+                    </label>
+                    <button type="submit">Run search</button>
+                </form>
+
+                {% if search_result %}
+                <div class="result-card">
+                    {% if search_result.status == "found" %}
+                    <span class="result-badge success">Match found</span>
+                    <h3>{{ search_result.full_name }}</h3>
+                    <p>ID #{{ search_result.person_id }} · Photo #{{ search_result.photo_id }}</p>
+                    <p>Similarity: {{ search_result.similarity }}</p>
+                    {% if search_result.photo_url %}
+                    <a href="{{ search_result.photo_url }}" target="_blank" class="photo-link">Open matched photo</a>
+                    {% endif %}
+                    {% else %}
+                    <span class="result-badge muted">No match</span>
+                    <h3>No person passed the threshold</h3>
+                    <p>Try another image or lower the threshold in backend configuration.</p>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </section>
+
+        <section class="registry">
+            <div class="registry-head">
+                <h2>Current registry</h2>
+                <span>{{ persons|length }} entries</span>
+            </div>
+            <div class="registry-grid">
+                {% for person in persons %}
+                <article class="person-card">
+                    <span class="person-id">#{{ person.person_id }}</span>
+                    <h3>{{ person.full_name }}</h3>
+                    <p>{{ person.photos_count }} photo(s)</p>
+                    <small>{{ person.created_at }}</small>
+                </article>
+                {% else %}
+                <article class="person-card empty-state">
+                    <h3>No people registered yet</h3>
+                    <p>Start by creating the first person in the form above.</p>
+                </article>
+                {% endfor %}
+            </div>
+        </section>
+    </main>
+</body>
+</html>
