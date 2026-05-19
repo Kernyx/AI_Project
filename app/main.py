@@ -10,7 +10,7 @@ from fastapi.templating import Jinja2Templates
 
 if __package__ in (None, ""):
     from database import SIMILARITY_THRESHOLD, storage
-    from ml_model import get_embedding, load_embedding_model
+    from ml_model import get_embedding, get_model_status, load_embedding_model
     from schemas import (
         PersonCreatedResponse,
         PhotoCreatedResponse,
@@ -19,7 +19,7 @@ if __package__ in (None, ""):
     )
 else:
     from .database import SIMILARITY_THRESHOLD, storage
-    from .ml_model import get_embedding, load_embedding_model
+    from .ml_model import get_embedding, get_model_status, load_embedding_model
     from .schemas import (
         PersonCreatedResponse,
         PhotoCreatedResponse,
@@ -288,5 +288,5 @@ async def search(file: UploadFile = File(...)) -> SearchFoundResponse | SearchNo
 
 
 @app.get("/health")
-async def healthcheck() -> dict[str, str]:
-    return {"status": "ok"}
+async def healthcheck() -> dict[str, object]:
+    return {"status": "ok", "model": get_model_status()}

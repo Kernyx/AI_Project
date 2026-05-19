@@ -71,6 +71,12 @@ Put the model checkpoint here:
 models/tattoo_embedding.pth
 ```
 
+Check that Docker will see the checkpoint before running:
+
+```bash
+test -f models/tattoo_embedding.pth && echo "model file found"
+```
+
 Run the downloaded image:
 
 ```bash

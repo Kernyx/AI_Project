@@ -69,6 +69,9 @@ class TattooEmbeddingService:
         model.eval()
         self.model = model
 
+    def is_loaded(self) -> bool:
+        return self.model is not None
+
     def embed(self, image_bytes: bytes) -> np.ndarray:
         if self.model is None:
             raise RuntimeError("Tattoo embedding model is not loaded")
@@ -123,3 +126,11 @@ def load_embedding_model() -> None:
 
 def get_embedding(image_bytes: bytes) -> np.ndarray:
     return embedding_service.embed(image_bytes)
+
+
+def get_model_status() -> dict[str, str | bool]:
+    return {
+        "loaded": embedding_service.is_loaded(),
+        "path": str(embedding_service.model_path),
+        "device": str(embedding_service.device),
+    }
