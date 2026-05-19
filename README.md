@@ -11,6 +11,7 @@
 - `models/tattoo_embedding.pth` - default PyTorch model checkpoint path
 - `data/` - SQLite DB and FAISS files, created automatically
 - `uploaded_photos/` - uploaded image storage, created automatically
+- `.env.example` - local environment variable template
 
 ## Native run
 

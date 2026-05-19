@@ -22,16 +22,22 @@ htmlcov/
 .env
 .env.*
 !.env.example
+.codex
 
 # Runtime data
-data/
-uploaded_photos/
+data/*
+!data/.gitkeep
+!data/README.md
+uploaded_photos/*
+!uploaded_photos/.gitkeep
+!uploaded_photos/README.md
 
 # ML checkpoints
 models/*.pth
 models/*.pt
 models/*.ckpt
 !models/.gitkeep
+!models/README.md
 
 # IDE/editor
 .idea/

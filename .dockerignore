@@ -7,4 +7,8 @@ __pycache__/
 .pytest_cache/
 data/
 uploaded_photos/
-
+models/*.pth
+models/*.pt
+models/*.ckpt
+.env
+.env.*
