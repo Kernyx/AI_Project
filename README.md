@@ -49,26 +49,29 @@ If you are already inside the `app/` directory, use:
 uvicorn main:app --reload
 ```
 
-## Docker run
+## Run From GitHub Container Registry
 
-```bash
-docker build -t tattoo-biometric-backend .
-docker run -p 8000:8000 \
-  -v "$(pwd)/data:/app/data" \
-  -v "$(pwd)/uploaded_photos:/app/uploaded_photos" \
-  -v "$(pwd)/models:/app/models" \
-  tattoo-biometric-backend
-```
+The Docker image is built by GitHub Actions and published to GHCR.
 
-## GitHub Container Registry
-
-The Docker image is built by GitHub Actions and published to GHCR:
+Pull the ready image:
 
 ```bash
 docker pull ghcr.io/kernyx/ai_project:latest
 ```
 
-Run the published image with local volumes:
+Prepare local runtime directories:
+
+```bash
+mkdir -p data uploaded_photos models
+```
+
+Put the model checkpoint here:
+
+```bash
+models/tattoo_embedding.pth
+```
+
+Run the downloaded image:
 
 ```bash
 docker run -p 8000:8000 \
@@ -79,6 +82,19 @@ docker run -p 8000:8000 \
 ```
 
 Image rebuilds are triggered only when Docker-relevant files change: `app/**`, `Dockerfile`, `requirements.txt`, `.dockerignore`, or the Docker workflow itself. Documentation-only changes do not trigger a rebuild.
+
+## Local Docker Build
+
+Use this only if you intentionally want to build the image on your own machine:
+
+```bash
+docker build -t tattoo-biometric-backend .
+docker run -p 8000:8000 \
+  -v "$(pwd)/data:/app/data" \
+  -v "$(pwd)/uploaded_photos:/app/uploaded_photos" \
+  -v "$(pwd)/models:/app/models" \
+  tattoo-biometric-backend
+```
 
 ## API endpoints
 
