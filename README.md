@@ -56,8 +56,29 @@ docker build -t tattoo-biometric-backend .
 docker run -p 8000:8000 \
   -v "$(pwd)/data:/app/data" \
   -v "$(pwd)/uploaded_photos:/app/uploaded_photos" \
+  -v "$(pwd)/models:/app/models" \
   tattoo-biometric-backend
 ```
+
+## GitHub Container Registry
+
+The Docker image is built by GitHub Actions and published to GHCR:
+
+```bash
+docker pull ghcr.io/kernyx/ai_project:latest
+```
+
+Run the published image with local volumes:
+
+```bash
+docker run -p 8000:8000 \
+  -v "$(pwd)/data:/app/data" \
+  -v "$(pwd)/uploaded_photos:/app/uploaded_photos" \
+  -v "$(pwd)/models:/app/models" \
+  ghcr.io/kernyx/ai_project:latest
+```
+
+Image rebuilds are triggered only when Docker-relevant files change: `app/**`, `Dockerfile`, `requirements.txt`, `.dockerignore`, or the Docker workflow itself. Documentation-only changes do not trigger a rebuild.
 
 ## API endpoints
 
