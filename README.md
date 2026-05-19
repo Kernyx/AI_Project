@@ -1,83 +1,65 @@
-# Tattoo Biometric Backend
+# Биометрическая идентификация по татуировкам
 
-## Project structure
+Backend-сервис на FastAPI для регистрации людей, хранения нескольких фотографий татуировок на одного человека и поиска совпадений через FAISS.
 
-- `app/main.py` - FastAPI app and API endpoints
-- `app/database.py` - SQLite initialization, FAISS lifecycle, data access helpers
-- `app/ml_model.py` - ResNet-18 embedding model loader and inference
-- `app/schemas.py` - response schemas
-- `app/templates/` - HTML templates for the user interface
-- `app/static/` - CSS assets
-- `models/tattoo_embedding.pth` - default PyTorch model checkpoint path
-- `data/` - SQLite DB and FAISS files, created automatically
-- `uploaded_photos/` - uploaded image storage, created automatically
-- `.env.example` - local environment variable template
+## Что внутри
 
-## Native run
+- `app/main.py` - FastAPI-приложение, API и веб-интерфейс.
+- `app/database.py` - SQLite, FAISS-индекс и функции доступа к данным.
+- `app/ml_model.py` - загрузка PyTorch-модели и получение 128-мерного embedding-вектора.
+- `app/templates/` - HTML-шаблоны интерфейса.
+- `app/static/` - CSS интерфейса.
+- `NN/resnet.py` - код обучения нейросети.
+- `models/tattoo_embedding.pth` - ожидаемый путь к весам модели для запуска приложения.
+- `data/` - локальная SQLite-база и FAISS-файлы, создаются автоматически.
+- `uploaded_photos/` - локальное хранилище загруженных изображений.
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload
+## Модель
+
+Приложение ожидает checkpoint, совместимый с `NN/resnet.py`.
+
+```text
+Tattoo Identification Embedding Network
+Architecture : ResNet-18 (ImageNet pretrained) -> projector(512->256->128) + L2-norm
+Loss          : Triplet Loss (margin = 0.2)
+Embedding dim : 128
 ```
 
-By default the app loads the model checkpoint from:
+Файл весов должен лежать здесь:
 
 ```bash
 models/tattoo_embedding.pth
 ```
 
-Expected model:
-
-```text
-Tattoo Identification Embedding Network
-Architecture : ResNet-18 -> FC(512->128) + L2-norm
-Loss          : Triplet Loss (margin = 0.2)
-Embedding dim : 128
-```
-
-To use another checkpoint path:
+Если веса лежат в `NN/tattoo_embedder.pth`, скопируйте их в runtime-папку:
 
 ```bash
-TATTOO_MODEL_PATH=/absolute/path/to/model.pth uvicorn app.main:app --reload
+cp NN/tattoo_embedder.pth models/tattoo_embedding.pth
 ```
 
-If you are already inside the `app/` directory, use:
+Проверка перед запуском:
 
 ```bash
-uvicorn main:app --reload
+test -f models/tattoo_embedding.pth && echo "файл модели найден"
 ```
 
-## Run From GitHub Container Registry
+## Запуск готового Docker-образа
 
-The Docker image is built by GitHub Actions and published to GHCR.
+Образ собирается в GitHub Actions и публикуется в GitHub Container Registry.
 
-Pull the ready image:
+Скачать готовый образ:
 
 ```bash
 docker pull ghcr.io/kernyx/ai_project:latest
 ```
 
-Prepare local runtime directories:
+Подготовить локальные папки:
 
 ```bash
 mkdir -p data uploaded_photos models
 ```
 
-Put the model checkpoint here:
-
-```bash
-models/tattoo_embedding.pth
-```
-
-Check that Docker will see the checkpoint before running:
-
-```bash
-test -f models/tattoo_embedding.pth && echo "model file found"
-```
-
-Run the downloaded image:
+Запустить контейнер:
 
 ```bash
 docker run -p 8000:8000 \
@@ -87,11 +69,38 @@ docker run -p 8000:8000 \
   ghcr.io/kernyx/ai_project:latest
 ```
 
-Image rebuilds are triggered only when Docker-relevant files change: `app/**`, `Dockerfile`, `requirements.txt`, `.dockerignore`, or the Docker workflow itself. Documentation-only changes do not trigger a rebuild.
+После запуска интерфейс доступен по адресу:
 
-## Local Docker Build
+```text
+http://127.0.0.1:8000/
+```
 
-Use this only if you intentionally want to build the image on your own machine:
+Проверка состояния:
+
+```bash
+curl http://127.0.0.1:8000/health
+```
+
+## Локальный запуск без Docker
+
+Рекомендуемый Python: `3.11` или `3.12`.
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+```
+
+Если нужно указать другой путь к весам:
+
+```bash
+TATTOO_MODEL_PATH=/absolute/path/to/model.pth uvicorn app.main:app --reload
+```
+
+## Локальная сборка Docker
+
+Используйте этот вариант только если нужно специально собрать образ на своей машине:
 
 ```bash
 docker build -t tattoo-biometric-backend .
@@ -102,13 +111,40 @@ docker run -p 8000:8000 \
   tattoo-biometric-backend
 ```
 
-## API endpoints
+## Сборка образа на GitHub
 
-- `GET /` - web interface for operators
-- `POST /api/add_new_person`
-  - multipart form fields: `full_name`, `file`
-- `POST /api/add_photo_to_existing`
-  - multipart form fields: `person_id`, `file`
-- `POST /api/search`
-  - multipart form field: `file`
-- `GET /health`
+Workflow: `.github/workflows/docker-image.yml`.
+
+Образ пересобирается только когда меняются файлы, влияющие на Docker-образ:
+
+- `app/**`
+- `Dockerfile`
+- `requirements.txt`
+- `.dockerignore`
+- `.github/workflows/docker-image.yml`
+
+Изменения документации, датасета, локальной базы, фотографий и весов модели не запускают пересборку образа.
+
+## API
+
+- `GET /` - веб-интерфейс оператора.
+- `GET /health` - статус приложения и модели.
+- `POST /api/add_new_person` - создать человека и добавить первое фото.
+- `POST /api/add_photo_to_existing` - добавить фото существующему человеку.
+- `POST /api/search` - найти человека по фото татуировки.
+
+Все `POST` эндпоинты принимают `multipart/form-data`.
+
+## Что не коммитить
+
+Эти файлы являются локальными runtime-артефактами и уже добавлены в `.gitignore`:
+
+- `models/*.pth`, `models/*.pt`, `models/*.ckpt`
+- `NN/*.pth`, `NN/*.pt`, `NN/*.ckpt`
+- `NN/data/`
+- `NN/*.ipynb`
+- `data/biometric.db`
+- `data/faiss.index`
+- `data/faiss_meta.json`
+- `uploaded_photos/*`
+- `.venv/`

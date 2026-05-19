@@ -11,7 +11,7 @@
     --accent-deep: #63290c;
     --success: #2f6b3d;
     --danger: #8c2f1c;
-    --shadow: 0 20px 50px rgba(64, 43, 20, 0.12);
+    --shadow: 0 10px 28px rgba(64, 43, 20, 0.10);
 }
 
 * {
@@ -21,7 +21,7 @@
 body {
     margin: 0;
     min-height: 100vh;
-    font-family: "Space Grotesk", sans-serif;
+    font-family: "Manrope", sans-serif;
     color: var(--text);
     background:
         radial-gradient(circle at top left, rgba(180, 69, 23, 0.18), transparent 28%),
@@ -32,7 +32,7 @@ body {
 .shell {
     width: min(1240px, calc(100vw - 32px));
     margin: 0 auto;
-    padding: 32px 0 56px;
+    padding: 24px 0 48px;
 }
 
 .hero {
@@ -40,7 +40,7 @@ body {
     grid-template-columns: 1.5fr 0.8fr;
     gap: 24px;
     align-items: stretch;
-    margin-bottom: 24px;
+    margin-bottom: 20px;
 }
 
 .hero-copy,
@@ -48,13 +48,13 @@ body {
 .panel,
 .registry {
     border: 1px solid var(--line);
-    border-radius: 28px;
+    border-radius: 8px;
     backdrop-filter: blur(20px);
     box-shadow: var(--shadow);
 }
 
 .hero-copy {
-    padding: 32px;
+    padding: 24px;
     background: linear-gradient(160deg, rgba(255, 249, 240, 0.92), rgba(241, 228, 205, 0.78));
 }
 
@@ -62,14 +62,14 @@ body {
 .metric-label,
 .person-id,
 small {
-    font-family: "IBM Plex Mono", monospace;
+    font-family: "JetBrains Mono", monospace;
 }
 
 .eyebrow {
     display: inline-block;
     margin-bottom: 12px;
     padding: 6px 10px;
-    border-radius: 999px;
+    border-radius: 6px;
     color: var(--accent-deep);
     background: rgba(180, 69, 23, 0.08);
     font-size: 0.8rem;
@@ -86,10 +86,10 @@ small {
 }
 
 .hero h1 {
-    max-width: 12ch;
-    font-size: clamp(2.6rem, 5vw, 4.6rem);
-    line-height: 0.96;
-    letter-spacing: -0.05em;
+    max-width: 16ch;
+    font-size: 2.4rem;
+    line-height: 1.08;
+    letter-spacing: 0;
 }
 
 .hero p {
@@ -106,7 +106,7 @@ small {
 
 .metric-card {
     padding: 28px;
-    border-radius: 28px;
+    border-radius: 8px;
     background: linear-gradient(150deg, #211c18, var(--surface-strong));
     color: var(--text-inverse);
 }
@@ -121,14 +121,14 @@ small {
 }
 
 .metric-value {
-    font-size: 2.3rem;
+    font-size: 2rem;
     line-height: 1;
 }
 
 .banner {
     margin-bottom: 20px;
     padding: 14px 18px;
-    border-radius: 16px;
+    border-radius: 8px;
     border: 1px solid var(--line);
 }
 
@@ -181,7 +181,7 @@ select,
 button {
     width: 100%;
     border: 1px solid rgba(82, 64, 42, 0.18);
-    border-radius: 14px;
+    border-radius: 8px;
     font: inherit;
 }
 
@@ -222,7 +222,7 @@ button:hover {
 .result-card {
     margin-top: 24px;
     padding: 18px;
-    border-radius: 20px;
+    border-radius: 8px;
     background: rgba(255, 255, 255, 0.08);
     border: 1px solid rgba(255, 255, 255, 0.12);
 }
@@ -231,7 +231,7 @@ button:hover {
     display: inline-block;
     margin-bottom: 10px;
     padding: 6px 10px;
-    border-radius: 999px;
+    border-radius: 6px;
     font-size: 0.8rem;
     text-transform: uppercase;
     letter-spacing: 0.06em;
@@ -272,7 +272,7 @@ button:hover {
 .person-card {
     flex-direction: column;
     padding: 18px;
-    border-radius: 20px;
+    border-radius: 8px;
     background: rgba(255, 255, 255, 0.52);
     border: 1px solid rgba(82, 64, 42, 0.12);
 }

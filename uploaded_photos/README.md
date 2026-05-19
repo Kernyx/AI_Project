@@ -1,6 +1,5 @@
-# Uploaded Photos
+# Загруженные фотографии
 
-This directory stores original uploaded tattoo images.
+В этой папке хранятся оригинальные загруженные изображения татуировок.
 
-Uploaded images are runtime data and must not be committed.
-
+Загруженные изображения являются runtime-данными и не должны попадать в git.

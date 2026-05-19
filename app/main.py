@@ -28,7 +28,7 @@ else:
     )
 
 
-app = FastAPI(title="Tattoo Biometric Identification API", version="1.0.0")
+app = FastAPI(title="API биометрической идентификации по татуировкам", version="1.0.0")
 BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
@@ -54,7 +54,7 @@ def _looks_like_image(image_bytes: bytes, content_type: str | None) -> str:
     if content_type not in SUPPORTED_IMAGE_TYPES:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Unsupported file type. Allowed: JPEG, PNG, WEBP",
+            detail="Неподдерживаемый тип файла. Разрешены JPEG, PNG, WEBP",
         )
 
     if content_type == "image/jpeg" and image_bytes.startswith(b"\xff\xd8\xff"):
@@ -66,7 +66,7 @@ def _looks_like_image(image_bytes: bytes, content_type: str | None) -> str:
 
     raise HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
-        detail="Uploaded file content does not match its declared image type",
+        detail="Содержимое файла не соответствует заявленному типу изображения",
     )
 
 
@@ -75,7 +75,7 @@ async def _read_image(file: UploadFile) -> tuple[bytes, str]:
     if not image_bytes:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Uploaded file is empty",
+            detail="Загруженный файл пустой",
         )
     extension = _looks_like_image(image_bytes, file.content_type)
     return image_bytes, extension
@@ -96,7 +96,7 @@ async def _create_person_with_photo(full_name: str, file: UploadFile) -> PersonC
     if not normalized_name:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="full_name must not be empty",
+            detail="ФИО не должно быть пустым",
         )
 
     image_bytes, extension = await _read_image(file)
@@ -110,7 +110,7 @@ async def _create_person_with_photo(full_name: str, file: UploadFile) -> PersonC
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create person: {exc}",
+            detail=f"Не удалось создать запись человека: {exc}",
         ) from exc
 
     return PersonCreatedResponse(
@@ -126,7 +126,7 @@ async def _add_photo(person_id: int, file: UploadFile) -> PhotoCreatedResponse:
     if not await storage.person_exists(person_id):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Person with id={person_id} not found",
+            detail=f"Человек с id={person_id} не найден",
         )
 
     image_bytes, extension = await _read_image(file)
@@ -139,7 +139,7 @@ async def _add_photo(person_id: int, file: UploadFile) -> PhotoCreatedResponse:
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to add photo: {exc}",
+            detail=f"Не удалось добавить фото: {exc}",
         ) from exc
 
     return PhotoCreatedResponse(
@@ -159,7 +159,7 @@ async def _search_person(file: UploadFile) -> SearchFoundResponse | SearchNotFou
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to search index: {exc}",
+            detail=f"Не удалось выполнить поиск по индексу: {exc}",
         ) from exc
 
     if search_hit is None or search_hit.distance < SIMILARITY_THRESHOLD:
@@ -169,7 +169,7 @@ async def _search_person(file: UploadFile) -> SearchFoundResponse | SearchNotFou
     if person is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No database record found for faiss_id={search_hit.faiss_id}",
+            detail=f"В базе данных нет записи для faiss_id={search_hit.faiss_id}",
         )
 
     return SearchFoundResponse(
@@ -220,7 +220,7 @@ async def add_new_person_ui(
 
     return await _render_dashboard(
         request,
-        success_message=f"Created person #{result.person_id}: {result.full_name}",
+        success_message=f"Создана запись #{result.person_id}: {result.full_name}",
     )
 
 
@@ -237,7 +237,7 @@ async def add_photo_to_existing_ui(
 
     return await _render_dashboard(
         request,
-        success_message=f"Added photo #{result.photo_id} to person #{result.person_id}",
+        success_message=f"Фото #{result.photo_id} добавлено к человеку #{result.person_id}",
     )
 
 
@@ -252,7 +252,7 @@ async def search_ui(request: Request, file: UploadFile = File(...)) -> HTMLRespo
         return await _render_dashboard(
             request,
             search_result={"status": "not_found"},
-            success_message="No confident match was found",
+            success_message="Совпадение с достаточной уверенностью не найдено",
         )
 
     photo = await storage.get_photo_by_id(result.photo_id)
@@ -268,7 +268,7 @@ async def search_ui(request: Request, file: UploadFile = File(...)) -> HTMLRespo
             "similarity": round(result.similarity, 4),
             "photo_url": photo_url,
         },
-        success_message="Search completed",
+        success_message="Поиск завершен",
     )
 
 

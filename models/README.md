@@ -1,21 +1,20 @@
-# Model Checkpoints
+# Веса модели
 
-Put the tattoo embedding checkpoint here for local development.
+Положите сюда checkpoint для запуска приложения.
 
-Default expected file:
+Ожидаемый файл по умолчанию:
 
 ```text
 models/tattoo_embedding.pth
 ```
 
-The checkpoint must match this architecture:
+Checkpoint должен соответствовать архитектуре из `NN/resnet.py`:
 
 ```text
 Tattoo Identification Embedding Network
-Architecture : ResNet-18 (ImageNet pretrained) -> FC(512->128) + L2-norm
+Architecture : ResNet-18 (ImageNet pretrained) -> projector(512->256->128) + L2-norm
 Loss          : Triplet Loss (margin = 0.2)
 Embedding dim : 128
 ```
 
-Checkpoint files such as `.pth`, `.pt`, and `.ckpt` are ignored by git because they are large binary artifacts.
-
+Файлы `.pth`, `.pt` и `.ckpt` игнорируются git, потому что это большие бинарные артефакты.

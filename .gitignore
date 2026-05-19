@@ -39,6 +39,13 @@ models/*.ckpt
 !models/.gitkeep
 !models/README.md
 
+# Neural network training artifacts
+NN/*.pth
+NN/*.pt
+NN/*.ckpt
+NN/data/
+NN/*.ipynb
+
 # IDE/editor
 .idea/
 .vscode/

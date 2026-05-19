@@ -17,13 +17,8 @@ EMBEDDING_DIM = 128
 DEFAULT_MODEL_PATH = Path("models") / "tattoo_embedding.pth"
 
 
-class TattooEmbeddingNet(nn.Module):
-    """
-    Tattoo Identification Embedding Network
-    Architecture : ResNet-18 (ImageNet pretrained) -> FC(512->128) + L2-norm
-    Loss          : Triplet Loss (margin = 0.2)
-    Embedding dim : 128
-    """
+class SimpleResNetEmbeddingNet(nn.Module):
+    """Compatibility loader for checkpoints saved as torchvision ResNet-18 + fc(512->128)."""
 
     def __init__(self) -> None:
         super().__init__()
@@ -36,16 +31,18 @@ class TattooEmbeddingNet(nn.Module):
         return F.normalize(embeddings, p=2, dim=1)
 
 
-class TattooProjectorEmbeddingNet(nn.Module):
+class TattooEmbeddingNet(nn.Module):
     """
-    Checkpoint-compatible network:
-    ResNet-18 convolutional backbone -> projector(512->256->128) + L2-norm.
+    Tattoo Identification Embedding Network.
+
+    Runtime copy of NN/resnet.py:
+    ResNet-18 backbone -> projector(512->256->128) -> L2-normalized embedding.
     """
 
     def __init__(self) -> None:
         super().__init__()
         resnet = models.resnet18(weights=None)
-        self.backbone = nn.Sequential(*list(resnet.children())[:-2])
+        self.backbone = nn.Sequential(*list(resnet.children())[:-1])
         self.projector = nn.Sequential(
             nn.Linear(512, 256),
             nn.BatchNorm1d(256),
@@ -54,10 +51,8 @@ class TattooProjectorEmbeddingNet(nn.Module):
         )
 
     def forward(self, images: torch.Tensor) -> torch.Tensor:
-        features = self.backbone(images)
-        pooled = F.adaptive_avg_pool2d(features, (1, 1))
-        flattened = torch.flatten(pooled, 1)
-        embeddings = self.projector(flattened)
+        features = self.backbone(images).flatten(1)
+        embeddings = self.projector(features)
         return F.normalize(embeddings, p=2, dim=1)
 
 
@@ -69,7 +64,7 @@ class TattooEmbeddingService:
         self.model: nn.Module | None = None
         self.preprocess = transforms.Compose(
             [
-                transforms.Resize(256),
+                transforms.Resize((256, 256)),
                 transforms.CenterCrop(224),
                 transforms.ToTensor(),
                 transforms.Normalize(
@@ -82,8 +77,8 @@ class TattooEmbeddingService:
     def load(self) -> None:
         if not self.model_path.exists():
             raise FileNotFoundError(
-                f"Model checkpoint not found: {self.model_path}. "
-                "Set TATTOO_MODEL_PATH or place the .pth file at models/tattoo_embedding.pth"
+                f"Файл весов модели не найден: {self.model_path}. "
+                "Укажите TATTOO_MODEL_PATH или положите .pth файл в models/tattoo_embedding.pth"
             )
 
         checkpoint = torch.load(self.model_path, map_location=self.device)
@@ -99,7 +94,7 @@ class TattooEmbeddingService:
 
     def embed(self, image_bytes: bytes) -> np.ndarray:
         if self.model is None:
-            raise RuntimeError("Tattoo embedding model is not loaded")
+            raise RuntimeError("Модель для извлечения embedding-векторов не загружена")
 
         image = Image.open(BytesIO(image_bytes)).convert("RGB")
         tensor = self.preprocess(image).unsqueeze(0).to(self.device)
@@ -109,7 +104,7 @@ class TattooEmbeddingService:
 
         norm = np.linalg.norm(embedding)
         if norm == 0:
-            raise RuntimeError("Model returned a zero embedding")
+            raise RuntimeError("Модель вернула нулевой embedding-вектор")
         return embedding / norm
 
     def _extract_state_dict(self, checkpoint: Any) -> dict[str, torch.Tensor]:
@@ -117,7 +112,7 @@ class TattooEmbeddingService:
             return checkpoint.state_dict()
 
         if not isinstance(checkpoint, dict):
-            raise ValueError("Unsupported checkpoint format")
+            raise ValueError("Неподдерживаемый формат checkpoint-файла")
 
         for key in ("model_state", "model_state_dict", "state_dict", "model"):
             candidate = checkpoint.get(key)
@@ -129,8 +124,8 @@ class TattooEmbeddingService:
     @staticmethod
     def _build_model_for_state_dict(state_dict: dict[str, torch.Tensor]) -> nn.Module:
         if any(key.startswith("projector.") for key in state_dict):
-            return TattooProjectorEmbeddingNet()
-        return TattooEmbeddingNet()
+            return TattooEmbeddingNet()
+        return SimpleResNetEmbeddingNet()
 
     @staticmethod
     def _normalize_state_dict_keys(state_dict: dict[str, Any]) -> dict[str, torch.Tensor]:
