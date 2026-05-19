@@ -11,9 +11,9 @@ import faiss
 import numpy as np
 
 if __package__ in (None, ""):
-    from ml_mock import EMBEDDING_DIM
+    from ml_model import EMBEDDING_DIM
 else:
-    from .ml_mock import EMBEDDING_DIM
+    from .ml_model import EMBEDDING_DIM
 
 
 DB_DIR = Path("data")

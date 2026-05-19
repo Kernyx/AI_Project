@@ -10,7 +10,7 @@ from fastapi.templating import Jinja2Templates
 
 if __package__ in (None, ""):
     from database import SIMILARITY_THRESHOLD, storage
-    from ml_mock import get_embedding
+    from ml_model import get_embedding, load_embedding_model
     from schemas import (
         PersonCreatedResponse,
         PhotoCreatedResponse,
@@ -19,7 +19,7 @@ if __package__ in (None, ""):
     )
 else:
     from .database import SIMILARITY_THRESHOLD, storage
-    from .ml_mock import get_embedding
+    from .ml_model import get_embedding, load_embedding_model
     from .schemas import (
         PersonCreatedResponse,
         PhotoCreatedResponse,
@@ -42,8 +42,10 @@ SUPPORTED_IMAGE_TYPES = {
 @app.on_event("startup")
 async def on_startup() -> None:
     await storage.initialize()
+    load_embedding_model()
 
 
+storage.upload_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 app.mount("/uploaded_photos", StaticFiles(directory=str(storage.upload_dir)), name="uploaded_photos")
 
