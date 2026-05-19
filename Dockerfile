@@ -21,6 +21,9 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 
 FROM python:3.12-slim AS runtime
 
+ARG APP_UID=1000
+ARG APP_GID=1000
+
 ENV PATH="/opt/venv/bin:$PATH"
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
@@ -31,8 +34,8 @@ WORKDIR /app
 RUN apt-get update && \
     apt-get install -y --no-install-recommends libgomp1 && \
     rm -rf /var/lib/apt/lists/* && \
-    groupadd --system app && \
-    useradd --system --gid app --home-dir /app app
+    groupadd --gid "${APP_GID}" app && \
+    useradd --uid "${APP_UID}" --gid app --home-dir /app app
 
 COPY --from=builder /opt/venv /opt/venv
 COPY app ./app

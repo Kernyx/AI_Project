@@ -63,6 +63,7 @@ mkdir -p data uploaded_photos models
 
 ```bash
 docker run -p 8000:8000 \
+  --user "$(id -u):$(id -g)" \
   -v "$(pwd)/data:/app/data" \
   -v "$(pwd)/uploaded_photos:/app/uploaded_photos" \
   -v "$(pwd)/models:/app/models" \
@@ -105,6 +106,7 @@ TATTOO_MODEL_PATH=/absolute/path/to/model.pth uvicorn app.main:app --reload
 ```bash
 docker build -t tattoo-biometric-backend .
 docker run -p 8000:8000 \
+  --user "$(id -u):$(id -g)" \
   -v "$(pwd)/data:/app/data" \
   -v "$(pwd)/uploaded_photos:/app/uploaded_photos" \
   -v "$(pwd)/models:/app/models" \
@@ -124,6 +126,27 @@ Workflow: `.github/workflows/docker-image.yml`.
 - `.github/workflows/docker-image.yml`
 
 Изменения документации, датасета, локальной базы, фотографий и весов модели не запускают пересборку образа.
+
+## Проблемы с правами доступа
+
+Если при добавлении человека появляется ошибка `attempt to write a readonly database`, значит контейнер не может записать в примонтированную папку `data/`.
+
+Проверьте, что контейнер запускается с пользователем хоста:
+
+```bash
+docker run -p 8000:8000 \
+  --user "$(id -u):$(id -g)" \
+  -v "$(pwd)/data:/app/data" \
+  -v "$(pwd)/uploaded_photos:/app/uploaded_photos" \
+  -v "$(pwd)/models:/app/models" \
+  ghcr.io/kernyx/ai_project:latest
+```
+
+Если файлы в `data/` были созданы от `root`, верните владельца своему пользователю:
+
+```bash
+sudo chown -R "$(id -u):$(id -g)" data uploaded_photos
+```
 
 ## API
 
