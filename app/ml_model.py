@@ -36,12 +36,37 @@ class TattooEmbeddingNet(nn.Module):
         return F.normalize(embeddings, p=2, dim=1)
 
 
+class TattooProjectorEmbeddingNet(nn.Module):
+    """
+    Checkpoint-compatible network:
+    ResNet-18 convolutional backbone -> projector(512->256->128) + L2-norm.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        resnet = models.resnet18(weights=None)
+        self.backbone = nn.Sequential(*list(resnet.children())[:-2])
+        self.projector = nn.Sequential(
+            nn.Linear(512, 256),
+            nn.BatchNorm1d(256),
+            nn.ReLU(inplace=True),
+            nn.Linear(256, EMBEDDING_DIM),
+        )
+
+    def forward(self, images: torch.Tensor) -> torch.Tensor:
+        features = self.backbone(images)
+        pooled = F.adaptive_avg_pool2d(features, (1, 1))
+        flattened = torch.flatten(pooled, 1)
+        embeddings = self.projector(flattened)
+        return F.normalize(embeddings, p=2, dim=1)
+
+
 class TattooEmbeddingService:
     def __init__(self, model_path: Path | None = None) -> None:
         configured_path = os.getenv("TATTOO_MODEL_PATH")
         self.model_path = Path(configured_path) if configured_path else model_path or DEFAULT_MODEL_PATH
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.model: TattooEmbeddingNet | None = None
+        self.model: nn.Module | None = None
         self.preprocess = transforms.Compose(
             [
                 transforms.Resize(256),
@@ -61,9 +86,9 @@ class TattooEmbeddingService:
                 "Set TATTOO_MODEL_PATH or place the .pth file at models/tattoo_embedding.pth"
             )
 
-        model = TattooEmbeddingNet()
         checkpoint = torch.load(self.model_path, map_location=self.device)
         state_dict = self._extract_state_dict(checkpoint)
+        model = self._build_model_for_state_dict(state_dict)
         model.load_state_dict(state_dict)
         model.to(self.device)
         model.eval()
@@ -94,12 +119,18 @@ class TattooEmbeddingService:
         if not isinstance(checkpoint, dict):
             raise ValueError("Unsupported checkpoint format")
 
-        for key in ("model_state_dict", "state_dict", "model"):
+        for key in ("model_state", "model_state_dict", "state_dict", "model"):
             candidate = checkpoint.get(key)
             if isinstance(candidate, dict):
                 return self._normalize_state_dict_keys(candidate)
 
         return self._normalize_state_dict_keys(checkpoint)
+
+    @staticmethod
+    def _build_model_for_state_dict(state_dict: dict[str, torch.Tensor]) -> nn.Module:
+        if any(key.startswith("projector.") for key in state_dict):
+            return TattooProjectorEmbeddingNet()
+        return TattooEmbeddingNet()
 
     @staticmethod
     def _normalize_state_dict_keys(state_dict: dict[str, Any]) -> dict[str, torch.Tensor]:
