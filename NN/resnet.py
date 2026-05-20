@@ -8,6 +8,8 @@ Embedding dim : 128
 
 import os
 import random
+from csv import DictWriter
+from pathlib import Path
 
 import torch
 import torch.nn as nn
@@ -124,6 +126,67 @@ INFERENCE_TRANSFORM = transforms.Compose([
 def add_gaussian_noise(tensor: torch.Tensor, std: float = 0.02) -> torch.Tensor:
     """Add zero-mean Gaussian noise (applied during training only)."""
     return tensor + torch.randn_like(tensor) * std
+
+
+def _default_metrics_paths(save_path: str) -> tuple[str, str]:
+    checkpoint_path = Path(save_path)
+    metrics_dir = checkpoint_path.parent
+    return (
+        str(metrics_dir / "training_metrics.csv"),
+        str(metrics_dir / "distance_horns.png"),
+    )
+
+
+def _append_epoch_metrics(csv_path: str, row: dict[str, float | int]) -> None:
+    path = Path(csv_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fieldnames = ["epoch", "loss", "dist_ap", "dist_an", "gap", "lr"]
+    needs_header = not path.exists() or path.stat().st_size == 0
+
+    with path.open("a", newline="", encoding="utf-8") as file:
+        writer = DictWriter(file, fieldnames=fieldnames)
+        if needs_header:
+            writer.writeheader()
+        writer.writerow(row)
+
+
+def _plot_distance_metrics(csv_path: str, plot_path: str) -> None:
+    os.environ.setdefault("MPLCONFIGDIR", "/tmp/matplotlib")
+    try:
+        import matplotlib.pyplot as plt
+    except ImportError:
+        print("[metrics] matplotlib не установлен — CSV сохранен, PNG-график пропущен")
+        return
+
+    import csv
+
+    epochs: list[int] = []
+    dist_ap: list[float] = []
+    dist_an: list[float] = []
+
+    with Path(csv_path).open("r", newline="", encoding="utf-8") as file:
+        reader = csv.DictReader(file)
+        for row in reader:
+            epochs.append(int(row["epoch"]))
+            dist_ap.append(float(row["dist_ap"]))
+            dist_an.append(float(row["dist_an"]))
+
+    if not epochs:
+        return
+
+    Path(plot_path).parent.mkdir(parents=True, exist_ok=True)
+    plt.figure(figsize=(10, 6))
+    plt.plot(epochs, dist_ap, marker="o", label="dist(A, P): один человек")
+    plt.plot(epochs, dist_an, marker="o", label="dist(A, N): разные люди")
+    plt.fill_between(epochs, dist_ap, dist_an, alpha=0.12)
+    plt.title("Расхождение расстояний эмбеддингов")
+    plt.xlabel("Эпоха")
+    plt.ylabel("Euclidean distance")
+    plt.grid(True, alpha=0.3)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(plot_path, dpi=160)
+    plt.close()
 
 
 # ─────────────────────────────────────────────
@@ -281,6 +344,8 @@ def train(
     grad_accum_steps: int = 1,
     num_workers: int   = 4,
     resume_optimizer: bool = False,
+    metrics_csv: str | None = None,
+    metrics_plot: str | None = None,
 ):
     """
     Full training routine.
@@ -300,6 +365,8 @@ def train(
                            (effectively multiplies batch size, reduces VRAM use)
         num_workers   : DataLoader workers. Use 0 on restricted environments.
         resume_optimizer : restore optimizer state from resume checkpoint when possible
+        metrics_csv   : CSV file with epoch/loss/dist(A,P)/dist(A,N) history
+        metrics_plot  : PNG plot for presentation ("distance horns")
     """
 
     if device == "auto":
@@ -354,7 +421,14 @@ def train(
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
 
+    if metrics_csv is None or metrics_plot is None:
+        default_csv, default_plot = _default_metrics_paths(save_path)
+        metrics_csv = metrics_csv or default_csv
+        metrics_plot = metrics_plot or default_plot
+
     start_epoch = 1
+    end_epoch = epochs
+    best_loss = float("inf")
     if resume_path:
         if not os.path.exists(resume_path):
             raise FileNotFoundError(f"[train] resume checkpoint не найден: {resume_path}")
@@ -380,17 +454,21 @@ def train(
             f"| epoch={checkpoint.get('epoch', '?')} "
             f"| loss={checkpoint.get('loss', float('nan')):.4f}"
         )
+        start_epoch = int(checkpoint.get("epoch", 0)) + 1
+        end_epoch = start_epoch + epochs - 1
+        best_loss = float(checkpoint.get("loss", float("inf")))
 
     # AMP scaler — active only on CUDA; on CPU/MPS it's a no-op wrapper
     use_amp = (device == "cuda")
     scaler  = torch.cuda.amp.GradScaler(enabled=use_amp)
 
-    best_loss = float("inf")
-
     # ── Epoch loop ────────────────────────────────────────────────────────
-    for epoch in range(start_epoch, epochs + 1):
+    for epoch in range(start_epoch, end_epoch + 1):
         model.train()
         running_loss = 0.0
+        running_dist_ap = 0.0
+        running_dist_an = 0.0
+        running_triplets = 0
         num_batches  = 0
 
         optimizer.zero_grad()   # zero once before accumulation loop
@@ -410,6 +488,16 @@ def train(
                 # gradient magnitude matches a single large-batch step
                 loss  = loss / grad_accum_steps
 
+            with torch.no_grad():
+                # These metrics show whether embeddings split correctly:
+                # same-person distance should fall, different-person distance should rise.
+                dist_ap = criterion._dist(emb_a, emb_p)
+                dist_an = criterion._dist(emb_a, emb_n)
+                batch_size_actual = anchor.size(0)
+                running_dist_ap += dist_ap.sum().item()
+                running_dist_an += dist_an.sum().item()
+                running_triplets += batch_size_actual
+
             scaler.scale(loss).backward()
 
             # Perform optimizer step only every grad_accum_steps batches
@@ -428,14 +516,35 @@ def train(
         scheduler.step()         # <- LR scheduler step (ПОСЛЕ optimizer)
 
         avg_loss = running_loss / num_batches
-        print(f"Epoch [{epoch:>3}/{epochs}]  loss = {avg_loss:.4f}  "
-              f"lr = {scheduler.get_last_lr()[0]:.2e}")
+        avg_dist_ap = running_dist_ap / running_triplets
+        avg_dist_an = running_dist_an / running_triplets
+        avg_gap = avg_dist_an - avg_dist_ap
+        current_lr = scheduler.get_last_lr()[0]
+        print(f"Epoch [{epoch:>3}/{end_epoch}]  loss = {avg_loss:.4f}  "
+              f"dist(A,P) = {avg_dist_ap:.4f}  dist(A,N) = {avg_dist_an:.4f}  "
+              f"gap = {avg_gap:.4f}  lr = {current_lr:.2e}")
+
+        _append_epoch_metrics(
+            metrics_csv,
+            {
+                "epoch": epoch,
+                "loss": round(avg_loss, 8),
+                "dist_ap": round(avg_dist_ap, 8),
+                "dist_an": round(avg_dist_an, 8),
+                "gap": round(avg_gap, 8),
+                "lr": current_lr,
+            },
+        )
+        _plot_distance_metrics(metrics_csv, metrics_plot)
 
         checkpoint_payload = {
             "epoch":           epoch,
             "model_state":     model.state_dict(),
             "optimizer_state": optimizer.state_dict(),
             "loss":            avg_loss,
+            "dist_ap":         avg_dist_ap,
+            "dist_an":         avg_dist_an,
+            "distance_gap":    avg_gap,
             "embedding_dim":   embedding_dim,
         }
 
@@ -449,6 +558,8 @@ def train(
             print(f"  OK Сохранён чекпоинт -> {save_path}  (loss={best_loss:.4f})")
 
     print(f"\n[train] Готово. Лучший loss = {best_loss:.4f}")
+    print(f"[metrics] CSV: {metrics_csv}")
+    print(f"[metrics] PNG: {metrics_plot}")
     return model
 
 
@@ -600,6 +711,8 @@ if __name__ == "__main__":
     p_train.add_argument("--grad-accum-steps", type=int, default=1)
     p_train.add_argument("--num-workers", type=int, default=4)
     p_train.add_argument("--resume-optimizer", action="store_true")
+    p_train.add_argument("--metrics-csv", default=None)
+    p_train.add_argument("--metrics-plot", default=None)
 
     p_embed = sub.add_parser("embed", help="Извлечь вектор признаков")
     p_embed.add_argument("--image",      required=True)
@@ -620,6 +733,8 @@ if __name__ == "__main__":
             grad_accum_steps = args.grad_accum_steps,
             num_workers = args.num_workers,
             resume_optimizer = args.resume_optimizer,
+            metrics_csv = args.metrics_csv,
+            metrics_plot = args.metrics_plot,
         )
 
     elif args.cmd == "embed":

@@ -63,6 +63,8 @@ DATA_DIR = f"{PROJECT_DIR}/NN/data"
 RESUME = f"{PROJECT_DIR}/models/tattoo_embedding.pth"
 BEST = f"{PROJECT_DIR}/models/tattoo_embedding.pth"
 LATEST = f"{PROJECT_DIR}/models/tattoo_embedding_latest.pth"
+METRICS_CSV = f"{PROJECT_DIR}/models/training_metrics.csv"
+METRICS_PLOT = f"{PROJECT_DIR}/models/distance_horns.png"
 
 print("torch:", torch.__version__)
 print("cuda:", torch.cuda.is_available())
@@ -84,7 +86,9 @@ print("resume exists:", Path(RESUME).exists())
   --batch-size 16 \
   --lr 0.00003 \
   --margin 0.2 \
-  --num-workers 2
+  --num-workers 2 \
+  --metrics-csv "$METRICS_CSV" \
+  --metrics-plot "$METRICS_PLOT"
 ```
 
 Если Colab падает по памяти, уменьшите batch size:
@@ -99,10 +103,33 @@ print("resume exists:", Path(RESUME).exists())
   --batch-size 8 \
   --lr 0.00003 \
   --margin 0.2 \
-  --num-workers 2
+  --num-workers 2 \
+  --metrics-csv "$METRICS_CSV" \
+  --metrics-plot "$METRICS_PLOT"
 ```
 
-## 7. Забрать веса в backend
+`--epochs 25` при `--resume` означает еще 25 эпох дообучения от текущего checkpoint.
+
+## 7. Проверить метрики расстояний
+
+После обучения рядом с весами появятся:
+
+```text
+models/training_metrics.csv
+models/distance_horns.png
+```
+
+Для презентации используйте `distance_horns.png`.
+
+Интерпретация:
+
+- `dist(A,P)` - расстояние между фото одного человека, должно снижаться.
+- `dist(A,N)` - расстояние между фото разных людей, должно расти.
+- Хороший признак - линии расходятся, то есть `dist(A,N) - dist(A,P)` увеличивается.
+- Плохой признак - обе линии падают: модель сжимает все в одну точку.
+- Плохой признак - обе линии растут: эмбеддинги расходятся хаотично.
+
+## 8. Забрать веса в backend
 
 После обучения основной файл весов уже будет называться правильно:
 
@@ -122,5 +149,6 @@ cp /path/to/downloaded/tattoo_embedding.pth models/tattoo_embedding.pth
 
 - `models/tattoo_embedding.pth` перезаписывается только если loss улучшился.
 - `latest` сохраняется после каждой эпохи.
+- CSV и PNG с метриками сохраняются в `models/`.
 - Для маленького датасета не ставьте слишком большой learning rate. Начинайте с `0.00003`.
 - Если добавили новые классы, лучше обучать 20-40 эпох и проверять поиск вручную на отложенных фото.
