@@ -247,10 +247,6 @@ button:hover {
     color: rgba(255, 255, 255, 0.8);
 }
 
-.photo-link {
-    color: #ffd0b1;
-}
-
 .inline-form {
     margin: 0;
 }
@@ -281,11 +277,26 @@ button:hover {
 
 .match-item {
     display: grid;
+    grid-template-columns: 112px minmax(0, 1fr);
+    align-items: start;
     gap: 10px;
     padding: 14px;
     border-radius: 8px;
     background: rgba(255, 255, 255, 0.08);
     border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.match-photo-link {
+    display: block;
+}
+
+.match-photo-link img {
+    display: block;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
 }
 
 .match-item h4,
@@ -375,7 +386,7 @@ button:hover {
 .photo-card img {
     display: block;
     width: 100%;
-    aspect-ratio: 1 / 1;
+    aspect-ratio: 4 / 3;
     object-fit: cover;
     border-radius: 6px;
 }
@@ -422,5 +433,9 @@ button:hover {
 
     .photo-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .match-item {
+        grid-template-columns: 1fr;
     }
 }

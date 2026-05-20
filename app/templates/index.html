@@ -103,6 +103,11 @@
                     <div class="match-list">
                         {% for item in search_result.results %}
                         <article class="match-item">
+                            {% if item.photo_url %}
+                            <a href="{{ item.photo_url }}" target="_blank" class="match-photo-link">
+                                <img src="{{ item.photo_url }}" alt="Найденное фото #{{ item.photo_id }} пользователя {{ item.full_name }}">
+                            </a>
+                            {% endif %}
                             <div>
                                 <span class="match-rank">#{{ loop.index }}</span>
                                 <h4>{{ item.full_name }}</h4>
@@ -114,9 +119,6 @@
                                 <span class="threshold-low">Ниже порога</span>
                                 {% endif %}
                             </div>
-                            {% if item.photo_url %}
-                            <a href="{{ item.photo_url }}" target="_blank" class="photo-link">Открыть фото</a>
-                            {% endif %}
                         </article>
                         {% endfor %}
                     </div>
