@@ -39,11 +39,9 @@ RUN apt-get update && \
 
 COPY --from=builder /opt/venv /opt/venv
 COPY app ./app
-COPY models/.gitkeep ./models/.gitkeep
-COPY data/.gitkeep ./data/.gitkeep
-COPY uploaded_photos/.gitkeep ./uploaded_photos/.gitkeep
 
-RUN chown -R app:app /app
+RUN mkdir -p /app/models /app/data /app/uploaded_photos && \
+    chown -R app:app /app
 
 USER app
 
