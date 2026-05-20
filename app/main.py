@@ -12,7 +12,9 @@ if __package__ in (None, ""):
     from database import SIMILARITY_THRESHOLD, storage
     from ml_model import get_embedding, get_model_status, load_embedding_model
     from schemas import (
+        PersonCreatedBatchResponse,
         PersonCreatedResponse,
+        PhotoCreatedBatchResponse,
         PhotoCreatedResponse,
         SearchFoundResponse,
         SearchNotFoundResponse,
@@ -21,7 +23,9 @@ else:
     from .database import SIMILARITY_THRESHOLD, storage
     from .ml_model import get_embedding, get_model_status, load_embedding_model
     from .schemas import (
+        PersonCreatedBatchResponse,
         PersonCreatedResponse,
+        PhotoCreatedBatchResponse,
         PhotoCreatedResponse,
         SearchFoundResponse,
         SearchNotFoundResponse,
@@ -91,7 +95,29 @@ def _photo_url(photo_path: str) -> str:
     return f"/uploaded_photos/{Path(photo_path).name}"
 
 
-async def _create_person_with_photo(full_name: str, file: UploadFile) -> PersonCreatedResponse:
+def _validate_files(files: list[UploadFile]) -> None:
+    if not files:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Нужно загрузить хотя бы одно фото",
+        )
+
+
+async def _save_photo_for_person(person_id: int, file: UploadFile) -> PhotoCreatedResponse:
+    image_bytes, extension = await _read_image(file)
+    embedding = get_embedding(image_bytes)
+    faiss_id = storage.add_embedding(embedding)
+    photo_path = _save_image(image_bytes, f"person_{person_id}", extension)
+    photo_id = await storage.save_photo_record(person_id, faiss_id, photo_path)
+    return PhotoCreatedResponse(
+        photo_id=photo_id,
+        person_id=person_id,
+        faiss_id=faiss_id,
+        photo_path=photo_path,
+    )
+
+
+async def _create_person_with_photos(full_name: str, files: list[UploadFile]) -> PersonCreatedBatchResponse:
     normalized_name = full_name.strip()
     if not normalized_name:
         raise HTTPException(
@@ -99,55 +125,60 @@ async def _create_person_with_photo(full_name: str, file: UploadFile) -> PersonC
             detail="ФИО не должно быть пустым",
         )
 
-    image_bytes, extension = await _read_image(file)
-    embedding = get_embedding(image_bytes)
+    _validate_files(files)
 
     try:
         person_id, created_at = await storage.create_person(normalized_name)
-        faiss_id = storage.add_embedding(embedding)
-        photo_path = _save_image(image_bytes, f"person_{person_id}", extension)
-        photo_id = await storage.save_photo_record(person_id, faiss_id, photo_path)
+        photos = [await _save_photo_for_person(person_id, file) for file in files]
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Не удалось создать запись человека: {exc}",
         ) from exc
 
-    return PersonCreatedResponse(
+    return PersonCreatedBatchResponse(
         person_id=person_id,
         full_name=normalized_name,
-        photo_id=photo_id,
-        faiss_id=faiss_id,
+        photo_ids=[photo.photo_id for photo in photos],
+        faiss_ids=[photo.faiss_id for photo in photos],
         created_at=created_at,
     )
 
 
-async def _add_photo(person_id: int, file: UploadFile) -> PhotoCreatedResponse:
+async def _create_person_with_photo(full_name: str, file: UploadFile) -> PersonCreatedResponse:
+    result = await _create_person_with_photos(full_name, [file])
+    return PersonCreatedResponse(
+        person_id=result.person_id,
+        full_name=result.full_name,
+        photo_id=result.photo_ids[0],
+        faiss_id=result.faiss_ids[0],
+        created_at=result.created_at,
+    )
+
+
+async def _add_photos(person_id: int, files: list[UploadFile]) -> PhotoCreatedBatchResponse:
     if not await storage.person_exists(person_id):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Человек с id={person_id} не найден",
         )
 
-    image_bytes, extension = await _read_image(file)
-    embedding = get_embedding(image_bytes)
+    _validate_files(files)
 
     try:
-        faiss_id = storage.add_embedding(embedding)
-        photo_path = _save_image(image_bytes, f"person_{person_id}", extension)
-        photo_id = await storage.save_photo_record(person_id, faiss_id, photo_path)
+        photos = [await _save_photo_for_person(person_id, file) for file in files]
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Не удалось добавить фото: {exc}",
         ) from exc
 
-    return PhotoCreatedResponse(
-        photo_id=photo_id,
-        person_id=person_id,
-        faiss_id=faiss_id,
-        photo_path=photo_path,
-    )
+    return PhotoCreatedBatchResponse(person_id=person_id, photos=photos)
+
+
+async def _add_photo(person_id: int, file: UploadFile) -> PhotoCreatedResponse:
+    result = await _add_photos(person_id, [file])
+    return result.photos[0]
 
 
 async def _search_person(file: UploadFile) -> SearchFoundResponse | SearchNotFoundResponse:
@@ -211,16 +242,19 @@ async def dashboard(request: Request) -> HTMLResponse:
 async def add_new_person_ui(
     request: Request,
     full_name: str = Form(...),
-    file: UploadFile = File(...),
+    file: list[UploadFile] = File(...),
 ) -> HTMLResponse:
     try:
-        result = await _create_person_with_photo(full_name, file)
+        result = await _create_person_with_photos(full_name, file)
     except HTTPException as exc:
         return await _render_dashboard(request, error_message=str(exc.detail))
 
     return await _render_dashboard(
         request,
-        success_message=f"Создана запись #{result.person_id}: {result.full_name}",
+        success_message=(
+            f"Создана запись #{result.person_id}: {result.full_name}. "
+            f"Добавлено фото: {len(result.photo_ids)}"
+        ),
     )
 
 
@@ -228,16 +262,16 @@ async def add_new_person_ui(
 async def add_photo_to_existing_ui(
     request: Request,
     person_id: int = Form(...),
-    file: UploadFile = File(...),
+    file: list[UploadFile] = File(...),
 ) -> HTMLResponse:
     try:
-        result = await _add_photo(person_id, file)
+        result = await _add_photos(person_id, file)
     except HTTPException as exc:
         return await _render_dashboard(request, error_message=str(exc.detail))
 
     return await _render_dashboard(
         request,
-        success_message=f"Фото #{result.photo_id} добавлено к человеку #{result.person_id}",
+        success_message=f"Добавлено фото: {len(result.photos)} к человеку #{result.person_id}",
     )
 
 
@@ -277,9 +311,33 @@ async def add_new_person(full_name: str = Form(...), file: UploadFile = File(...
     return await _create_person_with_photo(full_name, file)
 
 
+@app.post(
+    "/api/add_new_person_batch",
+    response_model=PersonCreatedBatchResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_new_person_batch(
+    full_name: str = Form(...),
+    file: list[UploadFile] = File(...),
+) -> PersonCreatedBatchResponse:
+    return await _create_person_with_photos(full_name, file)
+
+
 @app.post("/api/add_photo_to_existing", response_model=PhotoCreatedResponse, status_code=status.HTTP_201_CREATED)
 async def add_photo_to_existing(person_id: int = Form(...), file: UploadFile = File(...)) -> PhotoCreatedResponse:
     return await _add_photo(person_id, file)
+
+
+@app.post(
+    "/api/add_photos_to_existing",
+    response_model=PhotoCreatedBatchResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_photos_to_existing(
+    person_id: int = Form(...),
+    file: list[UploadFile] = File(...),
+) -> PhotoCreatedBatchResponse:
+    return await _add_photos(person_id, file)
 
 
 @app.post("/api/search", response_model=SearchFoundResponse | SearchNotFoundResponse)

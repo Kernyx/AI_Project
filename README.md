@@ -171,7 +171,9 @@ sudo chown -R "$(id -u):$(id -g)" data uploaded_photos
 - `GET /` - веб-интерфейс оператора.
 - `GET /health` - статус приложения и модели.
 - `POST /api/add_new_person` - создать человека и добавить первое фото.
+- `POST /api/add_new_person_batch` - создать человека и добавить несколько фото.
 - `POST /api/add_photo_to_existing` - добавить фото существующему человеку.
+- `POST /api/add_photos_to_existing` - добавить несколько фото существующему человеку.
 - `POST /api/search` - найти человека по фото татуировки.
 
 Все `POST` эндпоинты принимают `multipart/form-data`.

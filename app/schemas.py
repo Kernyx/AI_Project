@@ -14,11 +14,24 @@ class PersonCreatedResponse(BaseModel):
     created_at: datetime
 
 
+class PersonCreatedBatchResponse(BaseModel):
+    person_id: int
+    full_name: str
+    photo_ids: list[int]
+    faiss_ids: list[int]
+    created_at: datetime
+
+
 class PhotoCreatedResponse(BaseModel):
     photo_id: int
     person_id: int
     faiss_id: int
     photo_path: str
+
+
+class PhotoCreatedBatchResponse(BaseModel):
+    person_id: int
+    photos: list[PhotoCreatedResponse]
 
 
 class SearchFoundResponse(BaseModel):
@@ -31,4 +44,3 @@ class SearchFoundResponse(BaseModel):
 
 class SearchNotFoundResponse(BaseModel):
     status: Literal["not_found"]
-
