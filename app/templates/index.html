@@ -142,7 +142,7 @@
                         </div>
                         <form action="/ui/delete_person" method="post" class="inline-form" onsubmit="return confirm('Удалить человека и все его фото?');">
                             <input type="hidden" name="person_id" value="{{ person.person_id }}">
-                            <button type="submit" class="button-danger">Удалить человека</button>
+                            <button type="submit" class="button-danger">Удалить</button>
                         </form>
                     </div>
 
@@ -158,7 +158,7 @@
                             </div>
                             <form action="/ui/delete_photo" method="post" class="inline-form" onsubmit="return confirm('Удалить это фото?');">
                                 <input type="hidden" name="photo_id" value="{{ photo.photo_id }}">
-                                <button type="submit" class="button-secondary-danger">Удалить фото</button>
+                                <button type="submit" class="button-secondary-danger">Удалить</button>
                             </form>
                         </article>
                         {% endfor %}
