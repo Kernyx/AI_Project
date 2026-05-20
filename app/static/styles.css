@@ -102,9 +102,12 @@ small {
 .hero-metrics {
     display: grid;
     gap: 16px;
+    align-content: stretch;
 }
 
 .metric-card {
+    display: grid;
+    align-content: center;
     padding: 28px;
     border-radius: 8px;
     background: linear-gradient(150deg, #211c18, var(--surface-strong));
