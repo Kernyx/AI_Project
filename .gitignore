@@ -28,11 +28,7 @@ htmlcov/
 data/*
 !data/.gitkeep
 !data/README.md
-
-# Demo/runtime photos can be committed when you need the repository
-# to include example images for presentations and reproducible demos.
-!uploaded_photos/
-!uploaded_photos/**
+uploaded_photos/
 
 # ML checkpoints
 models/*.pth
@@ -45,7 +41,6 @@ models/*.ckpt
 NN/*.pth
 NN/*.pt
 NN/*.ckpt
-NN/data/
 NN/*.ipynb
 tattoo_colab_package*.zip
 
