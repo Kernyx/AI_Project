@@ -150,16 +150,16 @@
                     <div class="photo-grid">
                         {% for photo in person.photos %}
                         <article class="photo-card">
+                            <form action="/ui/delete_photo" method="post" class="photo-delete-form" onsubmit="return confirm('Удалить это фото?');">
+                                <input type="hidden" name="photo_id" value="{{ photo.photo_id }}">
+                                <button type="submit" class="photo-delete-button" aria-label="Удалить фото">×</button>
+                            </form>
                             <a href="{{ photo.photo_url }}" target="_blank">
                                 <img src="{{ photo.photo_url }}" alt="Фото #{{ photo.photo_id }} пользователя {{ person.full_name }}">
                             </a>
                             <div class="photo-card-meta">
                                 <span>Фото #{{ photo.photo_id }}</span>
                             </div>
-                            <form action="/ui/delete_photo" method="post" class="inline-form" onsubmit="return confirm('Удалить это фото?');">
-                                <input type="hidden" name="photo_id" value="{{ photo.photo_id }}">
-                                <button type="submit" class="button-secondary-danger">Удалить</button>
-                            </form>
                         </article>
                         {% endfor %}
                     </div>
