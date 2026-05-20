@@ -51,7 +51,7 @@ SUPPORTED_IMAGE_TYPES = {
     "image/png": ".png",
     "image/webp": ".webp",
 }
-PERSON_PHOTO_PREVIEW_LIMIT = 8
+PERSON_PHOTO_PREVIEW_LIMIT = 4
 
 
 @app.on_event("startup")
