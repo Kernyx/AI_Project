@@ -163,19 +163,26 @@ class Storage:
         return int(photo_id)
 
     async def search(self, embedding: np.ndarray) -> SearchHit | None:
+        hits = await self.search_top_k(embedding, k=1)
+        return hits[0] if hits else None
+
+    async def search_top_k(self, embedding: np.ndarray, k: int = 3) -> list[SearchHit]:
         if self.index is None:
             raise RuntimeError("FAISS index is not initialized")
-        if self.index.ntotal == 0:
-            return None
+        if self.index.ntotal == 0 or k <= 0:
+            return []
 
         vector = np.asarray([embedding], dtype=np.float32)
-        distances, ids = self.index.search(vector, 1)
-        faiss_id = int(ids[0][0])
-        distance = float(distances[0][0])
+        search_k = min(k, self.index.ntotal)
+        distances, ids = self.index.search(vector, search_k)
 
-        if faiss_id == -1:
-            return None
-        return SearchHit(distance=distance, faiss_id=faiss_id)
+        hits: list[SearchHit] = []
+        for distance, faiss_id in zip(distances[0], ids[0], strict=False):
+            normalized_faiss_id = int(faiss_id)
+            if normalized_faiss_id == -1:
+                continue
+            hits.append(SearchHit(distance=float(distance), faiss_id=normalized_faiss_id))
+        return hits
 
     async def get_person_by_faiss_id(self, faiss_id: int) -> dict[str, Any] | None:
         async with aiosqlite.connect(self.db_path) as db:

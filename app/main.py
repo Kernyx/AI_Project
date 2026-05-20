@@ -16,8 +16,10 @@ if __package__ in (None, ""):
         PersonCreatedResponse,
         PhotoCreatedBatchResponse,
         PhotoCreatedResponse,
+        SearchCandidateResponse,
         SearchFoundResponse,
         SearchNotFoundResponse,
+        SearchTopResponse,
     )
 else:
     from .database import SIMILARITY_THRESHOLD, storage
@@ -27,8 +29,10 @@ else:
         PersonCreatedResponse,
         PhotoCreatedBatchResponse,
         PhotoCreatedResponse,
+        SearchCandidateResponse,
         SearchFoundResponse,
         SearchNotFoundResponse,
+        SearchTopResponse,
     )
 
 
@@ -182,33 +186,55 @@ async def _add_photo(person_id: int, file: UploadFile) -> PhotoCreatedResponse:
 
 
 async def _search_person(file: UploadFile) -> SearchFoundResponse | SearchNotFoundResponse:
+    result = await _search_top_persons(file, k=1)
+    if not result.results or result.results[0].similarity < SIMILARITY_THRESHOLD:
+        return SearchNotFoundResponse(status="not_found")
+
+    candidate = result.results[0]
+
+    return SearchFoundResponse(
+        status="found",
+        person_id=candidate.person_id,
+        full_name=candidate.full_name,
+        photo_id=candidate.photo_id,
+        similarity=candidate.similarity,
+    )
+
+
+async def _search_top_persons(file: UploadFile, k: int = 3) -> SearchTopResponse:
     image_bytes, _ = await _read_image(file)
     embedding = get_embedding(image_bytes)
 
     try:
-        search_hit = await storage.search(embedding)
+        search_hits = await storage.search_top_k(embedding, k=k)
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Не удалось выполнить поиск по индексу: {exc}",
         ) from exc
 
-    if search_hit is None or search_hit.distance < SIMILARITY_THRESHOLD:
-        return SearchNotFoundResponse(status="not_found")
+    candidates: list[SearchCandidateResponse] = []
+    for search_hit in search_hits:
+        person = await storage.get_person_by_faiss_id(search_hit.faiss_id)
+        if person is None:
+            continue
 
-    person = await storage.get_person_by_faiss_id(search_hit.faiss_id)
-    if person is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"В базе данных нет записи для faiss_id={search_hit.faiss_id}",
+        candidates.append(
+            SearchCandidateResponse(
+                person_id=int(person["person_id"]),
+                full_name=str(person["full_name"]),
+                photo_id=int(person["photo_id"]),
+                faiss_id=int(person["faiss_id"]),
+                photo_path=str(person["photo_path"]),
+                similarity=search_hit.distance,
+                passed_threshold=search_hit.distance >= SIMILARITY_THRESHOLD,
+            )
         )
 
-    return SearchFoundResponse(
-        status="found",
-        person_id=int(person["person_id"]),
-        full_name=str(person["full_name"]),
-        photo_id=int(person["photo_id"]),
-        similarity=search_hit.distance,
+    return SearchTopResponse(
+        status="found" if any(candidate.passed_threshold for candidate in candidates) else "not_found",
+        threshold=SIMILARITY_THRESHOLD,
+        results=candidates,
     )
 
 
@@ -278,29 +304,33 @@ async def add_photo_to_existing_ui(
 @app.post("/ui/search", response_class=HTMLResponse)
 async def search_ui(request: Request, file: UploadFile = File(...)) -> HTMLResponse:
     try:
-        result = await _search_person(file)
+        result = await _search_top_persons(file, k=3)
     except HTTPException as exc:
         return await _render_dashboard(request, error_message=str(exc.detail))
 
-    if isinstance(result, SearchNotFoundResponse):
+    if not result.results:
         return await _render_dashboard(
             request,
-            search_result={"status": "not_found"},
-            success_message="Совпадение с достаточной уверенностью не найдено",
+            search_result={"status": "empty", "results": [], "threshold": SIMILARITY_THRESHOLD},
+            success_message="В базе пока нет фото для сравнения",
         )
-
-    photo = await storage.get_photo_by_id(result.photo_id)
-    photo_url = _photo_url(str(photo["photo_path"])) if photo is not None else None
 
     return await _render_dashboard(
         request,
         search_result={
-            "status": "found",
-            "person_id": result.person_id,
-            "full_name": result.full_name,
-            "photo_id": result.photo_id,
-            "similarity": round(result.similarity, 4),
-            "photo_url": photo_url,
+            "status": result.status,
+            "threshold": result.threshold,
+            "results": [
+                {
+                    "person_id": candidate.person_id,
+                    "full_name": candidate.full_name,
+                    "photo_id": candidate.photo_id,
+                    "similarity": round(candidate.similarity, 4),
+                    "passed_threshold": candidate.passed_threshold,
+                    "photo_url": _photo_url(candidate.photo_path),
+                }
+                for candidate in result.results
+            ],
         },
         success_message="Поиск завершен",
     )
@@ -343,6 +373,11 @@ async def add_photos_to_existing(
 @app.post("/api/search", response_model=SearchFoundResponse | SearchNotFoundResponse)
 async def search(file: UploadFile = File(...)) -> SearchFoundResponse | SearchNotFoundResponse:
     return await _search_person(file)
+
+
+@app.post("/api/search_top", response_model=SearchTopResponse)
+async def search_top(file: UploadFile = File(...), k: int = Form(3)) -> SearchTopResponse:
+    return await _search_top_persons(file, k=k)
 
 
 @app.get("/health")

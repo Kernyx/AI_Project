@@ -44,3 +44,19 @@ class SearchFoundResponse(BaseModel):
 
 class SearchNotFoundResponse(BaseModel):
     status: Literal["not_found"]
+
+
+class SearchCandidateResponse(BaseModel):
+    person_id: int
+    full_name: str
+    photo_id: int
+    faiss_id: int
+    photo_path: str
+    similarity: float
+    passed_threshold: bool
+
+
+class SearchTopResponse(BaseModel):
+    status: Literal["found", "not_found"]
+    threshold: float
+    results: list[SearchCandidateResponse]

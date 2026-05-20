@@ -175,6 +175,7 @@ sudo chown -R "$(id -u):$(id -g)" data uploaded_photos
 - `POST /api/add_photo_to_existing` - добавить фото существующему человеку.
 - `POST /api/add_photos_to_existing` - добавить несколько фото существующему человеку.
 - `POST /api/search` - найти человека по фото татуировки.
+- `POST /api/search_top` - вернуть несколько наиболее похожих фото, включая результаты ниже порога.
 
 Все `POST` эндпоинты принимают `multipart/form-data`.
 

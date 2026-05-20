@@ -251,6 +251,47 @@ button:hover {
     color: #ffd0b1;
 }
 
+.match-list {
+    display: grid;
+    gap: 12px;
+    margin-top: 14px;
+}
+
+.match-item {
+    display: grid;
+    gap: 10px;
+    padding: 14px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.match-item h4,
+.match-item p {
+    margin: 0 0 6px;
+}
+
+.match-rank,
+.threshold-ok,
+.threshold-low {
+    display: inline-block;
+    margin-bottom: 8px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.78rem;
+}
+
+.match-rank {
+    color: #ffd0b1;
+}
+
+.threshold-ok {
+    color: #c2ffd0;
+}
+
+.threshold-low {
+    color: rgba(255, 255, 255, 0.68);
+}
+
 .registry-head,
 .person-card {
     display: flex;

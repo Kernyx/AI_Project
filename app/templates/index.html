@@ -87,18 +87,41 @@
 
                 {% if search_result %}
                 <div class="result-card">
-                    {% if search_result.status == "found" %}
-                    <span class="result-badge success">Совпадение найдено</span>
-                    <h3>{{ search_result.full_name }}</h3>
-                    <p>ID #{{ search_result.person_id }} · Фото #{{ search_result.photo_id }}</p>
-                    <p>Сходство: {{ search_result.similarity }}</p>
-                    {% if search_result.photo_url %}
-                    <a href="{{ search_result.photo_url }}" target="_blank" class="photo-link">Открыть найденное фото</a>
-                    {% endif %}
+                    <span class="result-badge {% if search_result.status == 'found' %}success{% else %}muted{% endif %}">
+                        {% if search_result.status == "found" %}
+                        Есть совпадения выше порога
+                        {% elif search_result.status == "empty" %}
+                        База пуста
+                        {% else %}
+                        Ниже порога
+                        {% endif %}
+                    </span>
+                    <h3>Топ-3 похожих фото</h3>
+                    <p>Порог уверенности: {{ search_result.threshold }}</p>
+
+                    {% if search_result.results %}
+                    <div class="match-list">
+                        {% for item in search_result.results %}
+                        <article class="match-item">
+                            <div>
+                                <span class="match-rank">#{{ loop.index }}</span>
+                                <h4>{{ item.full_name }}</h4>
+                                <p>ID человека: {{ item.person_id }} · Фото: {{ item.photo_id }}</p>
+                                <p>Сходство: {{ item.similarity }}</p>
+                                {% if item.passed_threshold %}
+                                <span class="threshold-ok">Порог пройден</span>
+                                {% else %}
+                                <span class="threshold-low">Ниже порога</span>
+                                {% endif %}
+                            </div>
+                            {% if item.photo_url %}
+                            <a href="{{ item.photo_url }}" target="_blank" class="photo-link">Открыть фото</a>
+                            {% endif %}
+                        </article>
+                        {% endfor %}
+                    </div>
                     {% else %}
-                    <span class="result-badge muted">Совпадений нет</span>
-                    <h3>Никто не прошел порог уверенности</h3>
-                    <p>Попробуйте другое изображение или измените порог в настройках бэкенда.</p>
+                    <p>Сначала добавьте людей и фотографии в базу.</p>
                     {% endif %}
                 </div>
                 {% endif %}
