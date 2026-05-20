@@ -269,6 +269,13 @@ button:hover {
     border-color: rgba(140, 47, 28, 0.22);
 }
 
+.photo-card .button-secondary-danger {
+    min-width: 0;
+    padding-inline: 6px;
+    font-size: 0.76rem;
+    white-space: nowrap;
+}
+
 .match-list {
     display: grid;
     gap: 12px;
@@ -347,6 +354,8 @@ button:hover {
     flex-direction: column;
     justify-content: flex-start;
     gap: 14px;
+    min-width: 0;
+    overflow: hidden;
     padding: 18px;
     border-radius: 8px;
     background: rgba(255, 255, 255, 0.52);
@@ -369,6 +378,8 @@ button:hover {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     align-content: start;
+    width: 100%;
+    min-width: 0;
     gap: 10px;
 }
 
@@ -376,16 +387,26 @@ button:hover {
     display: grid;
     grid-template-rows: auto auto auto;
     gap: 7px;
+    width: 100%;
     min-width: 0;
+    overflow: hidden;
     padding: 8px;
     border-radius: 8px;
     background: rgba(255, 252, 245, 0.74);
     border: 1px solid rgba(82, 64, 42, 0.12);
 }
 
+.photo-card a {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    border-radius: 6px;
+}
+
 .photo-card img {
     display: block;
     width: 100%;
+    max-width: 100%;
     aspect-ratio: 4 / 3;
     object-fit: cover;
     border-radius: 6px;
@@ -394,9 +415,16 @@ button:hover {
 .photo-card-meta {
     display: grid;
     gap: 3px;
+    min-width: 0;
     color: var(--muted);
     font-family: "JetBrains Mono", monospace;
     font-size: 0.72rem;
+}
+
+.photo-card-meta span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .photo-more {
