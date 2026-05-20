@@ -51,6 +51,7 @@ SUPPORTED_IMAGE_TYPES = {
     "image/png": ".png",
     "image/webp": ".webp",
 }
+PERSON_PHOTO_PREVIEW_LIMIT = 8
 
 
 @app.on_event("startup")
@@ -329,8 +330,9 @@ async def _render_dashboard(
                 "faiss_id": int(photo["faiss_id"]),
                 "photo_url": _photo_url(str(photo["photo_path"])),
             }
-            for photo in photos
+            for photo in photos[:PERSON_PHOTO_PREVIEW_LIMIT]
         ]
+        enriched_person["hidden_photos_count"] = max(0, len(photos) - PERSON_PHOTO_PREVIEW_LIMIT)
         persons_with_photos.append(enriched_person)
 
     return templates.TemplateResponse(

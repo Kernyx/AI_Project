@@ -167,6 +167,9 @@
                         </article>
                         {% endfor %}
                     </div>
+                    {% if person.hidden_photos_count > 0 %}
+                    <p class="photo-more">Еще фото: {{ person.hidden_photos_count }}. Полный список доступен через API.</p>
+                    {% endif %}
                     {% else %}
                     <p class="muted-text">У этого человека пока нет фото.</p>
                     {% endif %}
