@@ -45,6 +45,7 @@ NN/*.pt
 NN/*.ckpt
 NN/data/
 NN/*.ipynb
+tattoo_colab_package*.zip
 
 # IDE/editor
 .idea/

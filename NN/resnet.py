@@ -270,6 +270,8 @@ class TattooTripletDataset(Dataset):
 def train(
     data_root: str,
     save_path: str     = "tattoo_embedder.pth",
+    resume_path: str   = None,
+    latest_path: str   = None,
     epochs: int        = 30,
     batch_size: int    = 16,
     lr: float          = 1e-4,
@@ -277,6 +279,8 @@ def train(
     embedding_dim: int = 128,
     device: str        = "auto",
     grad_accum_steps: int = 1,
+    num_workers: int   = 4,
+    resume_optimizer: bool = False,
 ):
     """
     Full training routine.
@@ -284,6 +288,8 @@ def train(
     Args:
         data_root     : path to the tattoo dataset (see TattooTripletDataset)
         save_path     : where to write the best model checkpoint
+        resume_path   : optional checkpoint to continue training from
+        latest_path   : optional path where every epoch checkpoint is saved
         epochs        : number of training epochs
         batch_size    : mini-batch size (auto-reduced if dataset is small)
         lr            : Adam learning rate
@@ -292,6 +298,8 @@ def train(
         device        : 'auto' | 'cpu' | 'cuda' | 'mps'
         grad_accum_steps : accumulate gradients over N batches before stepping
                            (effectively multiplies batch size, reduces VRAM use)
+        num_workers   : DataLoader workers. Use 0 on restricted environments.
+        resume_optimizer : restore optimizer state from resume checkpoint when possible
     """
 
     if device == "auto":
@@ -328,7 +336,7 @@ def train(
         dataset,
         batch_size=effective_batch,
         shuffle=True,
-        num_workers=4,
+        num_workers=num_workers,
         pin_memory=(device == "cuda"),
         drop_last=use_drop_last,
     )
@@ -341,10 +349,37 @@ def train(
         )
 
     # ── Model, loss, optimiser ────────────────────────────────────────────
-    model     = TattooEmbeddingNet(embedding_dim=embedding_dim).to(device)
+    model     = TattooEmbeddingNet(embedding_dim=embedding_dim, pretrained=(resume_path is None)).to(device)
     criterion = TripletLoss(margin=margin)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
+
+    start_epoch = 1
+    if resume_path:
+        if not os.path.exists(resume_path):
+            raise FileNotFoundError(f"[train] resume checkpoint не найден: {resume_path}")
+
+        checkpoint = torch.load(resume_path, map_location=device)
+        checkpoint_embedding_dim = checkpoint.get("embedding_dim", embedding_dim)
+        if checkpoint_embedding_dim != embedding_dim:
+            raise RuntimeError(
+                f"[train] embedding_dim checkpoint={checkpoint_embedding_dim}, "
+                f"а текущий embedding_dim={embedding_dim}"
+            )
+
+        model.load_state_dict(checkpoint["model_state"])
+        if resume_optimizer and "optimizer_state" in checkpoint:
+            optimizer.load_state_dict(checkpoint["optimizer_state"])
+            for state in optimizer.state.values():
+                for key, value in state.items():
+                    if isinstance(value, torch.Tensor):
+                        state[key] = value.to(device)
+
+        print(
+            f"[train] resume из {resume_path} "
+            f"| epoch={checkpoint.get('epoch', '?')} "
+            f"| loss={checkpoint.get('loss', float('nan')):.4f}"
+        )
 
     # AMP scaler — active only on CUDA; on CPU/MPS it's a no-op wrapper
     use_amp = (device == "cuda")
@@ -353,7 +388,7 @@ def train(
     best_loss = float("inf")
 
     # ── Epoch loop ────────────────────────────────────────────────────────
-    for epoch in range(1, epochs + 1):
+    for epoch in range(start_epoch, epochs + 1):
         model.train()
         running_loss = 0.0
         num_batches  = 0
@@ -396,18 +431,21 @@ def train(
         print(f"Epoch [{epoch:>3}/{epochs}]  loss = {avg_loss:.4f}  "
               f"lr = {scheduler.get_last_lr()[0]:.2e}")
 
+        checkpoint_payload = {
+            "epoch":           epoch,
+            "model_state":     model.state_dict(),
+            "optimizer_state": optimizer.state_dict(),
+            "loss":            avg_loss,
+            "embedding_dim":   embedding_dim,
+        }
+
+        if latest_path:
+            torch.save(checkpoint_payload, latest_path)
+
         if avg_loss < best_loss:
             best_loss = avg_loss
-            torch.save(
-                {
-                    "epoch":           epoch,
-                    "model_state":     model.state_dict(),
-                    "optimizer_state": optimizer.state_dict(),
-                    "loss":            best_loss,
-                    "embedding_dim":   embedding_dim,
-                },
-                save_path,
-            )
+            checkpoint_payload["loss"] = best_loss
+            torch.save(checkpoint_payload, save_path)
             print(f"  OK Сохранён чекпоинт -> {save_path}  (loss={best_loss:.4f})")
 
     print(f"\n[train] Готово. Лучший loss = {best_loss:.4f}")
@@ -557,6 +595,11 @@ if __name__ == "__main__":
     p_train.add_argument("--batch-size", type=int,   default=32)
     p_train.add_argument("--lr",         type=float, default=1e-4)
     p_train.add_argument("--margin",     type=float, default=0.2)
+    p_train.add_argument("--resume",     default=None)
+    p_train.add_argument("--latest",     default=None)
+    p_train.add_argument("--grad-accum-steps", type=int, default=1)
+    p_train.add_argument("--num-workers", type=int, default=4)
+    p_train.add_argument("--resume-optimizer", action="store_true")
 
     p_embed = sub.add_parser("embed", help="Извлечь вектор признаков")
     p_embed.add_argument("--image",      required=True)
@@ -568,10 +611,15 @@ if __name__ == "__main__":
         train(
             data_root  = args.data,
             save_path  = args.save,
+            resume_path = args.resume,
+            latest_path = args.latest,
             epochs     = args.epochs,
             batch_size = args.batch_size,
             lr         = args.lr,
             margin     = args.margin,
+            grad_accum_steps = args.grad_accum_steps,
+            num_workers = args.num_workers,
+            resume_optimizer = args.resume_optimizer,
         )
 
     elif args.cmd == "embed":

@@ -12,3 +12,5 @@
 ```bash
 cp NN/tattoo_embedder.pth models/tattoo_embedding.pth
 ```
+
+Для дообучения в Google Colab используйте инструкцию `COLAB_TRAINING.md`.

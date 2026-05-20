@@ -37,6 +37,24 @@ models/tattoo_embedding.pth
 cp NN/tattoo_embedder.pth models/tattoo_embedding.pth
 ```
 
+Для дообучения модели на GPU в Google Colab используйте инструкцию:
+
+```text
+COLAB_TRAINING.md
+```
+
+Для Colab уже подготовлен один архив:
+
+```text
+tattoo_colab_package.zip
+```
+
+Его нужно загрузить в Google Drive, распаковать по инструкции и запустить обучение. Итоговый файл весов после обучения будет называться правильно:
+
+```text
+models/tattoo_embedding.pth
+```
+
 Проверка перед запуском:
 
 ```bash
