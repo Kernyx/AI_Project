@@ -176,6 +176,9 @@ sudo chown -R "$(id -u):$(id -g)" data uploaded_photos
 - `POST /api/add_photos_to_existing` - добавить несколько фото существующему человеку.
 - `POST /api/search` - найти человека по фото татуировки.
 - `POST /api/search_top` - вернуть несколько наиболее похожих фото, включая результаты ниже порога.
+- `GET /api/persons/{person_id}/photos` - посмотреть фото, прикрепленные к человеку.
+- `DELETE /api/photos/{photo_id}` - удалить конкретное фото, его вектор из FAISS и файл с диска.
+- `DELETE /api/persons/{person_id}` - удалить человека, все его фото, векторы и файлы.
 
 Все `POST` эндпоинты принимают `multipart/form-data`.
 

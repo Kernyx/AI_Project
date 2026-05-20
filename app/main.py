@@ -12,8 +12,11 @@ if __package__ in (None, ""):
     from database import SIMILARITY_THRESHOLD, storage
     from ml_model import get_embedding, get_model_status, load_embedding_model
     from schemas import (
+        DeletePersonResponse,
+        DeletePhotoResponse,
         PersonCreatedBatchResponse,
         PersonCreatedResponse,
+        PhotoInfoResponse,
         PhotoCreatedBatchResponse,
         PhotoCreatedResponse,
         SearchCandidateResponse,
@@ -25,8 +28,11 @@ else:
     from .database import SIMILARITY_THRESHOLD, storage
     from .ml_model import get_embedding, get_model_status, load_embedding_model
     from .schemas import (
+        DeletePersonResponse,
+        DeletePhotoResponse,
         PersonCreatedBatchResponse,
         PersonCreatedResponse,
+        PhotoInfoResponse,
         PhotoCreatedBatchResponse,
         PhotoCreatedResponse,
         SearchCandidateResponse,
@@ -97,6 +103,17 @@ def _save_image(image_bytes: bytes, suffix: str, extension: str) -> str:
 
 def _photo_url(photo_path: str) -> str:
     return f"/uploaded_photos/{Path(photo_path).name}"
+
+
+def _photo_response(photo: dict[str, object]) -> PhotoInfoResponse:
+    photo_path = str(photo["photo_path"])
+    return PhotoInfoResponse(
+        photo_id=int(photo["id"]),
+        person_id=int(photo["person_id"]),
+        faiss_id=int(photo["faiss_id"]),
+        photo_path=photo_path,
+        photo_url=_photo_url(photo_path),
+    )
 
 
 def _validate_files(files: list[UploadFile]) -> None:
@@ -185,6 +202,62 @@ async def _add_photo(person_id: int, file: UploadFile) -> PhotoCreatedResponse:
     return result.photos[0]
 
 
+async def _list_person_photos(person_id: int) -> list[PhotoInfoResponse]:
+    if not await storage.person_exists(person_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Человек с id={person_id} не найден",
+        )
+
+    photos = await storage.list_photos_by_person(person_id)
+    return [_photo_response(photo) for photo in photos]
+
+
+async def _delete_photo(photo_id: int) -> DeletePhotoResponse:
+    try:
+        photo = await storage.delete_photo(photo_id)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Не удалось удалить фото: {exc}",
+        ) from exc
+
+    if photo is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Фото с id={photo_id} не найдено",
+        )
+
+    return DeletePhotoResponse(
+        status="deleted",
+        photo_id=int(photo["id"]),
+        person_id=int(photo["person_id"]),
+        faiss_id=int(photo["faiss_id"]),
+    )
+
+
+async def _delete_person(person_id: int) -> DeletePersonResponse:
+    try:
+        person = await storage.delete_person(person_id)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Не удалось удалить человека: {exc}",
+        ) from exc
+
+    if person is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Человек с id={person_id} не найден",
+        )
+
+    return DeletePersonResponse(
+        status="deleted",
+        person_id=int(person["id"]),
+        deleted_photos_count=int(person["deleted_photos_count"]),
+    )
+
+
 async def _search_person(file: UploadFile) -> SearchFoundResponse | SearchNotFoundResponse:
     result = await _search_top_persons(file, k=1)
     if not result.results or result.results[0].similarity < SIMILARITY_THRESHOLD:
@@ -246,11 +319,25 @@ async def _render_dashboard(
     search_result: dict[str, object] | None = None,
 ) -> HTMLResponse:
     persons = await storage.list_persons()
+    persons_with_photos = []
+    for person in persons:
+        photos = await storage.list_photos_by_person(int(person["person_id"]))
+        enriched_person = dict(person)
+        enriched_person["photos"] = [
+            {
+                "photo_id": int(photo["id"]),
+                "faiss_id": int(photo["faiss_id"]),
+                "photo_url": _photo_url(str(photo["photo_path"])),
+            }
+            for photo in photos
+        ]
+        persons_with_photos.append(enriched_person)
+
     return templates.TemplateResponse(
         request=request,
         name="index.html",
         context={
-            "persons": persons,
+            "persons": persons_with_photos,
             "success_message": success_message,
             "error_message": error_message,
             "search_result": search_result,
@@ -336,6 +423,35 @@ async def search_ui(request: Request, file: UploadFile = File(...)) -> HTMLRespo
     )
 
 
+@app.post("/ui/delete_photo", response_class=HTMLResponse)
+async def delete_photo_ui(request: Request, photo_id: int = Form(...)) -> HTMLResponse:
+    try:
+        result = await _delete_photo(photo_id)
+    except HTTPException as exc:
+        return await _render_dashboard(request, error_message=str(exc.detail))
+
+    return await _render_dashboard(
+        request,
+        success_message=f"Фото #{result.photo_id} удалено из базы и FAISS-индекса",
+    )
+
+
+@app.post("/ui/delete_person", response_class=HTMLResponse)
+async def delete_person_ui(request: Request, person_id: int = Form(...)) -> HTMLResponse:
+    try:
+        result = await _delete_person(person_id)
+    except HTTPException as exc:
+        return await _render_dashboard(request, error_message=str(exc.detail))
+
+    return await _render_dashboard(
+        request,
+        success_message=(
+            f"Человек #{result.person_id} удален. "
+            f"Удалено фото: {result.deleted_photos_count}"
+        ),
+    )
+
+
 @app.post("/api/add_new_person", response_model=PersonCreatedResponse, status_code=status.HTTP_201_CREATED)
 async def add_new_person(full_name: str = Form(...), file: UploadFile = File(...)) -> PersonCreatedResponse:
     return await _create_person_with_photo(full_name, file)
@@ -378,6 +494,21 @@ async def search(file: UploadFile = File(...)) -> SearchFoundResponse | SearchNo
 @app.post("/api/search_top", response_model=SearchTopResponse)
 async def search_top(file: UploadFile = File(...), k: int = Form(3)) -> SearchTopResponse:
     return await _search_top_persons(file, k=k)
+
+
+@app.get("/api/persons/{person_id}/photos", response_model=list[PhotoInfoResponse])
+async def list_person_photos(person_id: int) -> list[PhotoInfoResponse]:
+    return await _list_person_photos(person_id)
+
+
+@app.delete("/api/photos/{photo_id}", response_model=DeletePhotoResponse)
+async def delete_photo(photo_id: int) -> DeletePhotoResponse:
+    return await _delete_photo(photo_id)
+
+
+@app.delete("/api/persons/{person_id}", response_model=DeletePersonResponse)
+async def delete_person(person_id: int) -> DeletePersonResponse:
+    return await _delete_person(person_id)
 
 
 @app.get("/health")

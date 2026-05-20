@@ -27,7 +27,7 @@
                 </div>
                 <div class="metric-card">
                     <span class="metric-label">Режим поиска</span>
-                    <strong class="metric-value">Top-1 косинус</strong>
+                    <strong class="metric-value">Top-3 косинус</strong>
                 </div>
             </div>
         </section>
@@ -136,10 +136,40 @@
             <div class="registry-grid">
                 {% for person in persons %}
                 <article class="person-card">
-                    <span class="person-id">#{{ person.person_id }}</span>
-                    <h3>{{ person.full_name }}</h3>
-                    <p>Фото: {{ person.photos_count }}</p>
-                    <small>{{ person.created_at }}</small>
+                    <div class="person-card-head">
+                        <div>
+                            <span class="person-id">#{{ person.person_id }}</span>
+                            <h3>{{ person.full_name }}</h3>
+                            <p>Фото: {{ person.photos_count }}</p>
+                            <small>{{ person.created_at }}</small>
+                        </div>
+                        <form action="/ui/delete_person" method="post" class="inline-form" onsubmit="return confirm('Удалить человека и все его фото?');">
+                            <input type="hidden" name="person_id" value="{{ person.person_id }}">
+                            <button type="submit" class="button-danger">Удалить человека</button>
+                        </form>
+                    </div>
+
+                    {% if person.photos %}
+                    <div class="photo-grid">
+                        {% for photo in person.photos %}
+                        <article class="photo-card">
+                            <a href="{{ photo.photo_url }}" target="_blank">
+                                <img src="{{ photo.photo_url }}" alt="Фото #{{ photo.photo_id }} пользователя {{ person.full_name }}">
+                            </a>
+                            <div class="photo-card-meta">
+                                <span>Фото #{{ photo.photo_id }}</span>
+                                <span>FAISS #{{ photo.faiss_id }}</span>
+                            </div>
+                            <form action="/ui/delete_photo" method="post" class="inline-form" onsubmit="return confirm('Удалить это фото?');">
+                                <input type="hidden" name="photo_id" value="{{ photo.photo_id }}">
+                                <button type="submit" class="button-secondary-danger">Удалить фото</button>
+                            </form>
+                        </article>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="muted-text">У этого человека пока нет фото.</p>
+                    {% endif %}
                 </article>
                 {% else %}
                 <article class="person-card empty-state">

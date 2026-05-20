@@ -135,6 +135,21 @@ class Storage:
             rows = await cursor.fetchall()
         return [dict(row) for row in rows]
 
+    async def list_photos_by_person(self, person_id: int) -> list[dict[str, Any]]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                """
+                SELECT id, person_id, faiss_id, photo_path
+                FROM photos
+                WHERE person_id = ?
+                ORDER BY id DESC
+                """,
+                (person_id,),
+            )
+            rows = await cursor.fetchall()
+        return [dict(row) for row in rows]
+
     def add_embedding(self, embedding: np.ndarray) -> int:
         if self.index is None:
             raise RuntimeError("FAISS index is not initialized")
@@ -220,6 +235,63 @@ class Storage:
             )
             row = await cursor.fetchone()
         return dict(row) if row is not None else None
+
+    def remove_embeddings(self, faiss_ids: list[int]) -> None:
+        if self.index is None:
+            raise RuntimeError("FAISS index is not initialized")
+        if not faiss_ids:
+            return
+
+        ids = np.asarray(faiss_ids, dtype=np.int64)
+        self.index.remove_ids(ids)
+        self._persist_faiss()
+
+    async def delete_photo(self, photo_id: int) -> dict[str, Any] | None:
+        photo = await self.get_photo_by_id(photo_id)
+        if photo is None:
+            return None
+
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("PRAGMA foreign_keys = ON;")
+            await db.execute("DELETE FROM photos WHERE id = ?", (photo_id,))
+            await db.commit()
+
+        self.remove_embeddings([int(photo["faiss_id"])])
+        self._delete_file(str(photo["photo_path"]))
+        return photo
+
+    async def delete_person(self, person_id: int) -> dict[str, Any] | None:
+        photos = await self.list_photos_by_person(person_id)
+
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            await db.execute("PRAGMA foreign_keys = ON;")
+            cursor = await db.execute(
+                "SELECT id, full_name, created_at FROM persons WHERE id = ?",
+                (person_id,),
+            )
+            person = await cursor.fetchone()
+            if person is None:
+                return None
+
+            await db.execute("DELETE FROM persons WHERE id = ?", (person_id,))
+            await db.commit()
+
+        self.remove_embeddings([int(photo["faiss_id"]) for photo in photos])
+        for photo in photos:
+            self._delete_file(str(photo["photo_path"]))
+
+        result = dict(person)
+        result["deleted_photos_count"] = len(photos)
+        return result
+
+    def _delete_file(self, photo_path: str) -> None:
+        path = Path(photo_path)
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            # The database/vector state is more important than a stale file cleanup error.
+            pass
 
 
 storage = Storage()

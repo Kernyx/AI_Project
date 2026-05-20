@@ -34,6 +34,27 @@ class PhotoCreatedBatchResponse(BaseModel):
     photos: list[PhotoCreatedResponse]
 
 
+class PhotoInfoResponse(BaseModel):
+    photo_id: int
+    person_id: int
+    faiss_id: int
+    photo_path: str
+    photo_url: str
+
+
+class DeletePhotoResponse(BaseModel):
+    status: Literal["deleted"]
+    photo_id: int
+    person_id: int
+    faiss_id: int
+
+
+class DeletePersonResponse(BaseModel):
+    status: Literal["deleted"]
+    person_id: int
+    deleted_photos_count: int
+
+
 class SearchFoundResponse(BaseModel):
     status: Literal["found"]
     person_id: int
