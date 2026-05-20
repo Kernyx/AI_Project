@@ -17,7 +17,7 @@
                 <h1>Панель работы с базой татуировок</h1>
                 <p>
                     Добавляйте людей, прикрепляйте несколько фотографий татуировок
-                    и ищите совпадения в FAISS-индексе. Порог уверенности: {{ threshold }}.
+                    и ищите совпадения в FAISS-индексе.
                 </p>
             </div>
             <div class="hero-metrics">
@@ -93,7 +93,7 @@
                         {% endif %}
                     </span>
                     <h3>Топ-3 похожих фото</h3>
-                    <p>Порог уверенности: {{ search_result.threshold }}</p>
+                    <p class="search-threshold">Порог уверенности: {{ search_result.threshold }}</p>
 
                     {% if search_result.results %}
                     <div class="match-list">
@@ -107,8 +107,20 @@
                             <div>
                                 <span class="match-rank">#{{ loop.index }}</span>
                                 <h4>{{ item.full_name }}</h4>
-                                <p>ID человека: {{ item.person_id }} · Фото: {{ item.photo_id }}</p>
-                                <p>Сходство: {{ item.similarity }}</p>
+                                <dl class="match-meta">
+                                    <div>
+                                        <dt>ID человека</dt>
+                                        <dd>{{ item.person_id }}</dd>
+                                    </div>
+                                    <div>
+                                        <dt>Фото</dt>
+                                        <dd>{{ item.photo_id }}</dd>
+                                    </div>
+                                    <div>
+                                        <dt>Сходство</dt>
+                                        <dd>{{ item.similarity }}</dd>
+                                    </div>
+                                </dl>
                                 {% if item.passed_threshold %}
                                 <span class="threshold-ok">Порог пройден</span>
                                 {% else %}

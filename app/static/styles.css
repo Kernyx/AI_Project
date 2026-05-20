@@ -295,9 +295,55 @@ button:hover {
     border: 1px solid rgba(255, 255, 255, 0.18);
 }
 
+.search-threshold,
+.match-meta {
+    color: #fff2df;
+}
+
+.search-threshold {
+    display: inline-block;
+    margin: 8px 0 4px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    background: rgba(255, 208, 177, 0.12);
+    border: 1px solid rgba(255, 208, 177, 0.22);
+    font-weight: 700;
+}
+
 .match-item h4,
 .match-item p {
     margin: 0 0 6px;
+}
+
+.match-meta {
+    display: grid;
+    gap: 6px;
+    margin: 10px 0 8px;
+    padding: 10px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.24);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.match-meta div {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.match-meta dt,
+.match-meta dd {
+    margin: 0;
+}
+
+.match-meta dt {
+    color: rgba(255, 242, 223, 0.72);
+}
+
+.match-meta dd {
+    color: #ffffff;
+    font-family: "JetBrains Mono", monospace;
+    font-weight: 700;
 }
 
 .match-rank,
